@@ -1,33 +1,211 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:offline_connectivity/offline_connectivity.dart';
+import 'package:qr_flutter/qr_flutter.dart';
+import '../invitations/scan_invitation_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key, required this.connectivity});
-
   final OfflineConnectivity connectivity;
-
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  late Future<ConnectionCapabilities> _capabilities;
-
+  ConnectionCapabilities? _capabilities;
+  GroupConnectionState _connection = const GroupConnectionState();
+  StreamSubscription<GroupConnectionState>? _subscription;
+  bool _loading = true;
+  bool _running = false;
+  String? _error;
+  bool _capabilityError = false;
+  GroupInvitation? _invitation;
+  int _groupEpoch = 0;
   @override
   void initState() {
     super.initState();
-    _capabilities = widget.connectivity.getCapabilities();
+    _load();
   }
 
-  void _refresh() {
+  Future<void> _load() async {
     setState(() {
-      _capabilities = widget.connectivity.getCapabilities();
+      _loading = true;
+      _error = null;
+      _capabilityError = false;
     });
+    try {
+      final capabilities = await widget.connectivity.getCapabilities();
+      if (!mounted) return;
+      await _subscription?.cancel();
+      if (!mounted) return;
+      _capabilities = capabilities;
+      if (capabilities.implementationReady &&
+          capabilities.wifiDirectSupported) {
+        _subscription = widget.connectivity.states.listen(
+          (state) {
+            if (mounted) {
+              setState(() {
+                _connection = state;
+                if (state.status != GroupStatus.connected || !state.isHost) {
+                  _invitation = null;
+                  _groupEpoch++;
+                }
+                _error = state.errorMessage;
+              });
+            }
+          },
+          onError: (Object error) {
+            if (mounted) {
+              setState(() {
+                _error = 'Connection updates failed. Retry the support check.';
+              });
+            }
+          },
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _capabilityError = true;
+          _error = 'Could not check device support.';
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _run(Future<void> Function() action) async {
+    setState(() {
+      _running = true;
+      _error = null;
+    });
+    try {
+      await action();
+    } on PlatformException catch (error) {
+      if (mounted) {
+        setState(() {
+          _error = error.message ?? 'Connection request failed.';
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _error = 'Connection request failed. Please retry.';
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _running = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _disconnect() async {
+    if (_connection.isHost && _connection.status == GroupStatus.connected) {
+      final leave = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('End this group?'),
+          content: const Text(
+            'Everyone will lose their connection to this host.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Stay'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('End group'),
+            ),
+          ],
+        ),
+      );
+      if (leave != true || !mounted) return;
+    }
+    await _run(widget.connectivity.disconnect);
+  }
+
+  Future<void> _showInvitation() => _run(() async {
+    final epoch = _groupEpoch;
+    final invitation = await widget.connectivity.getInvitation();
+    if (mounted &&
+        epoch == _groupEpoch &&
+        _connection.status == GroupStatus.connected &&
+        _connection.isHost) {
+      setState(() {
+        _invitation = invitation;
+      });
+    }
+  });
+
+  Future<void> _scanInvitation() async {
+    final invitation = await Navigator.of(context).push<GroupInvitation>(
+      MaterialPageRoute(builder: (_) => const ScanInvitationScreen()),
+    );
+    if (invitation == null || !mounted) return;
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Join this group?'),
+        content: Text(
+          'Connect to ${invitation.networkName}? Keep the host nearby with its group open.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Join'),
+          ),
+        ],
+      ),
+    );
+    if (confirm == true && mounted) {
+      await _run(() => widget.connectivity.joinInvitation(invitation));
+    }
+  }
+
+  @override
+  void dispose() {
+    _subscription?.cancel();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
+    final ready =
+        !_loading &&
+        !_capabilityError &&
+        (_capabilities?.implementationReady ?? false) &&
+        (_capabilities?.wifiDirectSupported ?? false);
+    final occupied = {
+      GroupStatus.connecting,
+      GroupStatus.connected,
+      GroupStatus.disconnecting,
+    }.contains(_connection.status);
+    final canStart = ready && !_running && !occupied;
+    final statusText = switch (_connection.status) {
+      GroupStatus.idle => 'Not connected',
+      GroupStatus.discovering => 'Searching for nearby devices',
+      GroupStatus.connecting => 'Connecting — accept any system invitation',
+      GroupStatus.connected =>
+        _connection.isHost
+            ? 'Connected · You are the host'
+            : 'Connected · Participant',
+      GroupStatus.disconnecting => 'Disconnecting',
+      GroupStatus.unavailable => 'Wi-Fi Direct unavailable',
+    };
     return Scaffold(
       appBar: AppBar(title: const Text('Offline Group Messenger')),
       body: SafeArea(
@@ -38,74 +216,182 @@ class _HomeScreenState extends State<HomeScreen> {
               padding: const EdgeInsets.all(24),
               children: [
                 Text(
-                  'Stay close. Stay connected.',
-                  style: textTheme.headlineLarge,
+                  'Connect your group',
+                  style: Theme.of(context).textTheme.headlineLarge,
                 ),
                 const SizedBox(height: 12),
-                Text(
-                  'A space for your group, even without Internet.',
-                  style: textTheme.bodyLarge,
+                const Text(
+                  'Create a group on one Android phone. Others can scan its QR invitation or find the host nearby.',
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 16),
+                if (ready &&
+                    _connection.status == GroupStatus.connected &&
+                    _connection.isHost) ...[
+                  OutlinedButton.icon(
+                    onPressed: _running ? null : _showInvitation,
+                    icon: const Icon(Icons.qr_code),
+                    label: const Text('Show group QR code'),
+                  ),
+                  if (_invitation != null) ...[
+                    const SizedBox(height: 12),
+                    Center(
+                      child: Semantics(
+                        label: 'Group invitation QR code',
+                        child: ExcludeSemantics(
+                          child: QrImageView(
+                            data: _invitation!.encode(),
+                            size: 240,
+                            padding: const EdgeInsets.all(16),
+                            backgroundColor: Colors.white,
+                            eyeStyle: const QrEyeStyle(
+                              eyeShape: QrEyeShape.square,
+                              color: Colors.black,
+                            ),
+                            dataModuleStyle: const QrDataModuleStyle(
+                              dataModuleShape: QrDataModuleShape.square,
+                              color: Colors.black,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const Text(
+                      'Only show this code to people joining your group. It contains the Wi-Fi password.',
+                    ),
+                    TextButton(
+                      onPressed: () => setState(() {
+                        _invitation = null;
+                      }),
+                      child: const Text('Hide QR code'),
+                    ),
+                  ],
+                  const SizedBox(height: 12),
+                ],
                 Card(
                   child: Padding(
                     padding: const EdgeInsets.all(20),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Project preview', style: textTheme.titleMedium),
+                        Text(
+                          ready ? statusText : 'Device support',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
                         const SizedBox(height: 8),
-                        const Text(
-                          'The shared interface is ready to build on. '
-                          'Creating groups and sending messages are not '
-                          'implemented yet.',
-                        ),
-                        const SizedBox(height: 12),
-                        FutureBuilder<ConnectionCapabilities>(
-                          future: _capabilities,
-                          builder: (context, snapshot) {
-                            if (snapshot.hasError) {
-                              return Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text('Could not check device support.'),
-                                  TextButton(
-                                    onPressed: _refresh,
-                                    child: const Text('Try again'),
-                                  ),
-                                ],
-                              );
-                            }
-                            if (!snapshot.hasData) {
-                              return const Text('Checking device support...');
-                            }
-                            return Text(snapshot.requireData.description);
-                          },
-                        ),
+                        if (_loading)
+                          const Text('Checking device support...')
+                        else if (_capabilities != null)
+                          Text(_capabilities!.description),
+                        if (ready) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            _connection.wifiEnabled
+                                ? 'Wi-Fi enabled'
+                                : 'Enable Wi-Fi in system settings.',
+                          ),
+                          if (!_connection.permissionGranted)
+                            const Text(
+                              'Your first action will ask for Nearby devices or Location permission.',
+                            ),
+                          if (_connection.status == GroupStatus.connected &&
+                              _connection.hostAddress != null)
+                            SelectableText(
+                              'Host IP: ${_connection.hostAddress}',
+                            ),
+                        ],
+                        if (_error != null) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            _error!,
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.error,
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: _running ? null : _load,
+                            child: const Text('Try again'),
+                          ),
+                        ],
                       ],
                     ),
                   ),
                 ),
-                const SizedBox(height: 24),
-                const TextField(
-                  maxLength: 40,
-                  textCapitalization: TextCapitalization.words,
-                  decoration: InputDecoration(labelText: 'Your name'),
-                ),
                 const SizedBox(height: 16),
-                const FilledButton(
-                  onPressed: null,
-                  child: Text('Create a group'),
+                FilledButton(
+                  onPressed: canStart
+                      ? () => _run(widget.connectivity.createGroup)
+                      : null,
+                  child: const Text('Create a group'),
                 ),
                 const SizedBox(height: 8),
-                const OutlinedButton(
-                  onPressed: null,
-                  child: Text('Join a group'),
+                OutlinedButton(
+                  onPressed: canStart
+                      ? () => _run(widget.connectivity.discoverPeers)
+                      : null,
+                  child: const Text('Find nearby devices'),
                 ),
+                if (ready && (_capabilities?.canJoinQr ?? false))
+                  OutlinedButton.icon(
+                    onPressed: canStart ? _scanInvitation : null,
+                    icon: const Icon(Icons.qr_code_scanner),
+                    label: const Text('Scan group QR code'),
+                  ),
+                if (ready && !(_capabilities?.canJoinQr ?? false))
+                  const Text(
+                    'QR joining requires Android 10+. Use nearby-device discovery on this phone.',
+                  ),
+                if (ready)
+                  TextButton(
+                    onPressed: _running ? null : _disconnect,
+                    child: Text(
+                      _connection.status == GroupStatus.connected
+                          ? 'Disconnect'
+                          : 'Cancel / stop discovery',
+                    ),
+                  ),
+                if (_running)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8),
+                    child: LinearProgressIndicator(),
+                  ),
+                if (ready && !occupied) ...[
+                  const SizedBox(height: 16),
+                  Text(
+                    'Nearby devices',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  if (_connection.peers.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                      child: Text(
+                        'No devices listed. Enable Wi-Fi and Location, then search. Keep the host nearby.',
+                      ),
+                    ),
+                  for (final peer in _connection.peers)
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(
+                        peer.name.isEmpty ? 'Nearby device' : peer.name,
+                      ),
+                      subtitle: Text(
+                        peer.isGroupOwner
+                            ? 'Group host'
+                            : 'Nearby Wi-Fi Direct device',
+                      ),
+                      trailing: TextButton(
+                        onPressed: canStart
+                            ? () => _run(
+                                () => widget.connectivity.joinGroup(peer.id),
+                              )
+                            : null,
+                        child: const Text('Join'),
+                      ),
+                    ),
+                ],
                 const SizedBox(height: 20),
                 const Text(
-                  'An Android phone will host the group. '
-                  'Keep everyone within its Wi-Fi range.',
+                  'Connection prototype only — text messaging is coming next. '
+                  'Nearby devices may include phones that are not running this app.',
                 ),
               ],
             ),

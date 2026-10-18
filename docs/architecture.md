@@ -20,24 +20,37 @@ https://docs.flutter.dev/platform-integration/platform-channels
 - Local plugin with a working getCapabilities method on both platforms.
 - Android checks whether Wi-Fi Direct hardware is advertised by the device.
 - Swift explicitly reports that the iOS connection adapter is not implemented.
-- Both platforms report implementationReady=false. This is a scaffold, not a
-  working messenger. No request claims to create or join a real group.
+- Android implements create/discover/join/disconnect and reports
+  implementationReady=true. iOS remains false and rejects connection methods
+  with unsupported. This flag means the adapter is implemented, not that a
+  connection is established or that messaging exists.
+- ActivityAware handles runtime permission requests. The engine owns the receiver
+  and P2P channel; activity resume refreshes system connection state. Detaching
+  releases listeners and attempts group cleanup. Explicit disconnect is preferred.
+- An EventChannel carries snapshots. The actual group-owner address comes from
+  WifiP2pInfo, not an assumed subnet. Action success only acknowledges acceptance;
+  connected state requires groupFormed and a non-null group-owner address.
+- Requests have a 15-second callback timeout. Connecting is rechecked for about
+  60 seconds to catch missing broadcasts and rejected invitations. It can also
+  be cancelled from the UI. Callback revisions discard obsolete operation results.
 - Shared message and participant models and a message transport interface.
+- Host QR invitations use group network credentials fetched on explicit request.
+  Android 10+ joins with WifiP2pConfig.Builder SSID/passphrase; discovery remains
+  available on older versions. mobile_scanner uses bundled ML Kit so first scan
+  does not require Internet. qr_flutter renders a black-on-white QR in either theme.
 
 ## Next implementation steps
 
-1. Kotlin: runtime permissions, WifiP2pManager lifecycle, create/discover/join,
-   connection state and disconnect cleanup. Use ActivityAware in the plugin when
-   permission requests need an Activity. Keep blocking work off the UI thread.
-2. Expose connection events through a documented EventChannel. Return the actual
-   group-owner IP; never hardcode an address or infer readiness from hardware.
+1. Run the hardware checks in wifi-direct-testing.md on two or three phones.
+2. Add app-specific service discovery before treating all discovered peers as
+   compatible messenger instances. Current discovery lists generic Wi-Fi peers.
 3. Dart: implement TCP framing, bounded versioned JSON messages, validation,
    deduplication, acknowledgements and host fan-out. Transport should be injectable.
 4. Add lobby and chat screens with loading, denied permission, empty discovery,
    disconnected, reconnecting and delivery-failed states.
 5. Design authenticated encrypted messaging before claiming privacy. A wireless
    password is not a complete participant-authentication or end-to-end design.
-6. Add persistence, QR invitations and NFC experiments after the connection works.
+6. Add persistence and NFC experiments after messaging works.
 
 The Android host leaving ends the group in the first prototype. Host migration,
 multi-hop forwarding and background operation are separate milestones.

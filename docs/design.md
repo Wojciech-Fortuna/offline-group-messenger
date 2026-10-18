@@ -17,11 +17,18 @@ Joining adds a discovery screen with searching, empty, denied and error states.
 Use text alongside color to explain connection status. Distinguish sent,
 delivered and failed messages; do not show delivery before acknowledgement.
 
-## Scaffold
+## Connection prototype
 
-The home screen displays real bridge capability information, a name field and
-disabled group actions. It explicitly labels networking as unimplemented.
-The name is not yet stored or used to start a group.
+The home screen offers Create a group and Find nearby devices. Discovered peers
+have Join actions; connected sessions show the device role and actual host IP.
+Users can cancel discovery/connection or disconnect; hosts confirm ending the
+group. Permission failures and disabled Wi-Fi/Location have recovery messages.
+The unused name field was removed until participant identity/messaging exists.
+The screen explicitly states that text messaging is not implemented.
+Connected hosts can show/hide a group QR invitation. Android 10+ clients can scan,
+review the group name and confirm joining. Invalid codes stay on the scanner
+screen with guidance; camera denial explains how to enable access. The QR uses
+a white background and black modules for readability in either theme.
 
 Move UI strings into Flutter localization resources when adding more screens or
 a second language. Add screen controllers / state management when real session

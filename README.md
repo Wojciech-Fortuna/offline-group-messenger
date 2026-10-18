@@ -5,10 +5,16 @@ connectivity** and a **Swift stub for future iOS connectivity**.
 
 ## Status
 
-This is a project scaffold, not a working messenger. It includes a shared Material
-3 home screen, light/dark themes, native device-capability reporting, message
-models and a transport interface. Creating/joining groups and sending messages
-are not implemented; their UI actions are disabled.
+The Android connection prototype supports permissions, creating a Wi-Fi Direct
+group, discovering nearby devices, joining and disconnecting. Flutter receives
+live connection state, discovered peers, host/participant role and Android's actual
+group-owner IP address. The Material 3 interface is shared with iOS, whose
+connection adapter remains a stub. Text messaging is not implemented yet.
+
+Hosts can display a **group QR code**. On Android 10+, another phone can scan it,
+confirm the group and join without choosing a device from the discovery list.
+The scanner works offline and asks for camera permission when opened.
+Older Android phones can still use nearby-device discovery.
 
 ## Structure
 
@@ -22,7 +28,7 @@ android/                       Android app host (Kotlin)
 ios/                           iPhone app host (Swift / Xcode project)
 packages/offline_connectivity/
   lib/                         Typed Dart API for the native bridge
-  android/src/main/kotlin/     Kotlin capability check; Wi-Fi Direct goes here
+  android/src/main/kotlin/     Kotlin Wi-Fi Direct lifecycle and permissions
   ios/Classes/                 Swift capability stub; iOS adapter goes here
   test/                        Bridge contract checks
 test/                          App widget checks
@@ -65,10 +71,11 @@ cannot be checked on Windows.
 ## Validation in this workspace
 
 - Flutter static analysis passed.
-- Two app widget tests and three connectivity contract tests passed.
-- Android APK compilation was attempted, but the Gradle distribution download
-  stalled before compilation. The stalled build was stopped; native Android
-  compilation remains unverified.
+- App widget tests and connectivity contract tests cover connection states,
+  peer selection, permission errors, method arguments and event subscriptions.
+- Android debug APK compilation passed.
+- Actual discovery and group formation require the two-phone hardware checks in
+  [Wi-Fi Direct testing](docs/wifi-direct-testing.md); these have not been run here.
 - iOS compilation requires macOS and Xcode and has not been run.
 
 ## Design and implementation plan
@@ -77,7 +84,7 @@ Use Flutter Material 3 for a shared, accessible UI; Figma is optional for sketch
 See [design](docs/design.md), [architecture](docs/architecture.md) and the
 [native bridge contract](docs/connectivity-contract.md).
 
-Next: implement Kotlin Wi-Fi Direct lifecycle and permissions, then the shared
+Next: verify groups on two or three Android phones, then implement the shared
 Dart message transport and chat screens. NFC, multi-hop and host migration are
 later milestones.
 

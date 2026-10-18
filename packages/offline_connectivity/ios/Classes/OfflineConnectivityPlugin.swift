@@ -19,6 +19,12 @@ public class OfflineConnectivityPlugin: NSObject, FlutterPlugin {
                 "implementationReady": false,
                 "description": "The iPhone interface is shared. The iOS connection adapter is not implemented yet."
             ])
+        case "createGroup", "discoverPeers", "joinGroup", "disconnect", "getState", "getInvitation", "joinInvitation":
+            result(FlutterError(
+                code: "unsupported",
+                message: "The iOS connection adapter is not implemented.",
+                details: nil
+            ))
         default:
             result(FlutterMethodNotImplemented)
         }
