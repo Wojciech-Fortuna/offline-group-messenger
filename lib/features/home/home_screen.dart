@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:offline_connectivity/offline_connectivity.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../invitations/scan_invitation_screen.dart';
+import '../invitations/nfc_invitation_screen.dart';
 import '../../core/messaging/tcp_message_transport.dart';
 import '../chat/chat_screen.dart';
 
@@ -184,6 +185,22 @@ class _HomeScreenState extends State<HomeScreen> {
     final invitation = await Navigator.of(context).push<GroupInvitation>(
       MaterialPageRoute(builder: (_) => const ScanInvitationScreen()),
     );
+    await _confirmInvitation(invitation);
+  }
+
+  Future<void> _nfcInvitation({required bool sharing}) async {
+    final invitation = await Navigator.of(context).push<GroupInvitation>(
+      MaterialPageRoute(
+        builder: (_) => NfcInvitationScreen(
+          connectivity: widget.connectivity,
+          sharing: sharing,
+        ),
+      ),
+    );
+    if (!sharing) await _confirmInvitation(invitation);
+  }
+
+  Future<void> _confirmInvitation(GroupInvitation? invitation) async {
     if (invitation == null || !mounted) return;
     final confirm = await showDialog<bool>(
       context: context,
@@ -290,6 +307,14 @@ class _HomeScreenState extends State<HomeScreen> {
                 if (ready &&
                     _connection.status == GroupStatus.connected &&
                     _connection.isHost) ...[
+                  if (_capabilities?.canShareNfc ?? false)
+                    OutlinedButton.icon(
+                      onPressed: _running
+                          ? null
+                          : () => _nfcInvitation(sharing: true),
+                      icon: const Icon(Icons.nfc),
+                      label: const Text('Share via NFC'),
+                    ),
                   OutlinedButton.icon(
                     onPressed: _running ? null : _showInvitation,
                     icon: const Icon(Icons.qr_code),
@@ -398,6 +423,14 @@ class _HomeScreenState extends State<HomeScreen> {
                     onPressed: canStart ? _scanInvitation : null,
                     icon: const Icon(Icons.qr_code_scanner),
                     label: const Text('Scan group QR code'),
+                  ),
+                if (ready && (_capabilities?.canJoinNfc ?? false))
+                  OutlinedButton.icon(
+                    onPressed: canStart
+                        ? () => _nfcInvitation(sharing: false)
+                        : null,
+                    icon: const Icon(Icons.nfc),
+                    label: const Text('Join via NFC'),
                   ),
                 if (ready && !(_capabilities?.canJoinQr ?? false))
                   const Text(

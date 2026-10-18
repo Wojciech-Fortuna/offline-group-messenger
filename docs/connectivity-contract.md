@@ -16,6 +16,9 @@ Codec: Flutter StandardMethodCodec.
 | disconnect | none | null after discovery/negotiation cleanup and group removal |
 | getInvitation | none | Versioned invitation for the current connected host group |
 | joinInvitation | invitation map | null when Android accepts credential-based joining (API 29+) |
+| startNfcSharing | none | null after current host credentials are fetched and HCE sharing enabled for up to 60 seconds |
+| readNfcInvitation | none | Invitation JSON string after one successful ISO-DEP read; does not join |
+| stopNfc | none | null after sharing is revoked and pending reading cancelled |
 
 Android requests the appropriate runtime permission automatically before a
 connection command. Requests are serialized; concurrent commands fail with busy.
@@ -24,6 +27,9 @@ returns unsupported for other methods; clients must check capabilities first.
 Unknown methods return notImplemented.
 
 Capabilities include canJoinQr (true only on supported Android 10+ devices).
+Optional canShareNfc requires Wi-Fi Direct and NFC HCE support; canJoinNfc requires
+Wi-Fi Direct, NFC reader support and Android 10+. Missing values default to false.
+These flags describe hardware/API support, not whether the NFC toggle is enabled.
 getInvitation requires the caller to already be the connected Group Owner; it
 queries WifiP2pGroup on demand. Credentials are never added to state snapshots.
 joinInvitation uses WifiP2pConfig.Builder with the SSID and password, avoiding
@@ -37,15 +43,26 @@ SSID must follow DIRECT-xy naming and fit 32 UTF-8 bytes; the passphrase is
 Additional errors are not_host and invalid_invitation.
 There is no expiry or one-time-use guarantee: this shares network credentials,
 not a cryptographically authenticated messaging invitation.
+The NFC sharing window expires, but credentials already read remain valid for
+the group; stopping sharing does not revoke copies already obtained.
+
+NFC requires a resumed activity and enabled NFC. Errors include nfc_inactive,
+nfc_unsupported, nfc_disabled, nfc_unavailable, nfc_cancelled, nfc_timeout and
+nfc_read_failed. A reader session times out after 30 seconds. Stop, activity pause,
+activity detach and engine teardown cancel it; stale results are ignored. Sharing
+also stops on loss of host status. HCE checks the sharing window and unlocked,
+interactive device on every command. Credentials are never persisted or logged.
+See nfc-testing.md for the protocol and physical-device checks.
 
 A successful create/join call does NOT mean the connection is established.
 Wait for status=connected in the event stream before using hostAddress.
-There is no messaging socket or port in this API yet.
+Messaging sockets remain in the shared Dart layer, outside this native API.
 
 ## State snapshots
 
 A new native event subscription receives the latest snapshot, followed by system
-updates. Use a single app-owned subscription. Cancelling it detaches the event
+updates. The Dart API shares one native subscription among its listeners.
+Cancelling the last listener detaches the event
 sink, not the Wi-Fi group; use disconnect to leave.
 
 | Field | Type | Meaning |

@@ -40,6 +40,21 @@ class OfflineConnectivity {
 
   Future<void> joinInvitation(GroupInvitation invitation) =>
       _channel.invokeMethod<void>('joinInvitation', invitation.toMap());
+
+  /// Native code fetches current host credentials; sharing expires after 60 s.
+  Future<void> startNfcSharing() =>
+      _channel.invokeMethod<void>('startNfcSharing');
+
+  /// Cancels reading, revokes sharing and clears native in-memory credentials.
+  Future<void> stopNfc() => _channel.invokeMethod<void>('stopNfc');
+
+  /// Reads only; the caller must confirm before invoking [joinInvitation].
+  Future<GroupInvitation> readNfcInvitation() async {
+    final raw = await _channel.invokeMethod<String>('readNfcInvitation');
+    if (raw == null) throw const FormatException('Missing NFC invitation.');
+    return GroupInvitation.parse(raw);
+  }
+
   Future<GroupConnectionState> getState() async {
     final result = await _channel.invokeMapMethod<String, dynamic>('getState');
     if (result == null) {
@@ -66,6 +81,8 @@ class ConnectionCapabilities {
     required this.implementationReady,
     required this.description,
     this.canJoinQr = false,
+    this.canShareNfc = false,
+    this.canJoinNfc = false,
   });
 
   factory ConnectionCapabilities.fromMap(Map<String, dynamic> map) {
@@ -85,6 +102,8 @@ class ConnectionCapabilities {
       implementationReady: implementationReady,
       description: description,
       canJoinQr: map['canJoinQr'] == true,
+      canShareNfc: map['canShareNfc'] == true,
+      canJoinNfc: map['canJoinNfc'] == true,
     );
   }
 
@@ -93,4 +112,6 @@ class ConnectionCapabilities {
   final bool implementationReady;
   final String description;
   final bool canJoinQr;
+  final bool canShareNfc;
+  final bool canJoinNfc;
 }

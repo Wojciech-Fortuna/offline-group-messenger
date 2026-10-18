@@ -18,6 +18,13 @@ confirm the group and join without choosing a device from the discovery list.
 The scanner works offline and asks for camera permission when opened.
 Older Android phones can still use nearby-device discovery.
 
+Android phones with NFC can also use **tap invitations**. The host opens
+**Share via NFC**; the joining phone opens **Join via NFC**, taps the host and
+confirms the invitation. Sharing requires HCE support; joining requires Android
+10+ and NFC. Both phones must stay unlocked with the app open. Sharing turns off
+after 60 seconds, on leaving the sharing screen, or when the app is backgrounded.
+QR remains available on phones without NFC. See [NFC testing](docs/nfc-testing.md).
+
 ## Structure
 
 ```text
@@ -99,7 +106,7 @@ retrying a chat session, and not replayed to new participants. Host confirmation
 means the host accepted a message, not that every participant read it.
 
 Next: run the two/three-phone [chat checks](docs/chat-protocol.md), then add
-authenticated encryption and persistence. NFC, multi-hop and host migration are
+authenticated encryption and persistence. Multi-hop and host migration are
 later milestones.
 
 ## Original project concept

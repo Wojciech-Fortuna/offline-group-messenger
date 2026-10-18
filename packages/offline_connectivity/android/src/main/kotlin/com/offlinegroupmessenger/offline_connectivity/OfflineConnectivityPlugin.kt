@@ -24,6 +24,7 @@ class OfflineConnectivityPlugin : FlutterPlugin, ActivityAware,
     PluginRegistry.RequestPermissionsResultListener {
 
     private lateinit var context: Context
+    private lateinit var nfc: NfcInvitationController
     private var attached = false
     private var methods: MethodChannel? = null
     private var events: EventChannel? = null
@@ -80,11 +81,13 @@ class OfflineConnectivityPlugin : FlutterPlugin, ActivityAware,
     }
     private val lifecycle = object : Application.ActivityLifecycleCallbacks {
         override fun onActivityResumed(activity: Activity) {
-            if (activity === activityBinding?.activity) refresh()
+            if (activity === activityBinding?.activity) { nfc.resume(); refresh() }
         }
         override fun onActivityCreated(activity: Activity, state: Bundle?) {}
         override fun onActivityStarted(activity: Activity) {}
-        override fun onActivityPaused(activity: Activity) {}
+        override fun onActivityPaused(activity: Activity) {
+            if (activity === activityBinding?.activity) nfc.pause()
+        }
         override fun onActivityStopped(activity: Activity) {}
         override fun onActivitySaveInstanceState(activity: Activity, state: Bundle) {}
         override fun onActivityDestroyed(activity: Activity) {}
@@ -92,6 +95,7 @@ class OfflineConnectivityPlugin : FlutterPlugin, ActivityAware,
 
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         context = binding.applicationContext
+        nfc = NfcInvitationController(context)
         attached = true
         methods = MethodChannel(binding.binaryMessenger, "com.offlinegroupmessenger/connectivity")
             .also { it.setMethodCallHandler(this) }
@@ -130,7 +134,10 @@ class OfflineConnectivityPlugin : FlutterPlugin, ActivityAware,
         "isHost" to isHost, "hostAddress" to hostAddress, "peers" to peers,
         "errorCode" to errorCode, "errorMessage" to errorMessage
     )
-    private fun emit() { if (attached) sink?.success(snapshot()) }
+    private fun emit() {
+        if (status != "connected" || !isHost) nfc.stopSharing()
+        if (attached) sink?.success(snapshot())
+    }
     private fun clearError() { errorCode = null; errorMessage = null }
     private fun clearConnection(next: String) { status = next; isHost = false; hostAddress = null }
     private fun finish(value: Any? = null) {
@@ -223,11 +230,22 @@ class OfflineConnectivityPlugin : FlutterPlugin, ActivityAware,
                 "platform" to "android", "wifiDirectSupported" to supported,
                 "implementationReady" to true,
                 "canJoinQr" to (supported && Build.VERSION.SDK_INT >= 29),
+                "canShareNfc" to (supported && nfc.canShare),
+                "canJoinNfc" to (supported && nfc.canRead && Build.VERSION.SDK_INT >= 29),
                 "description" to if (supported) "Wi-Fi Direct is available on this device."
                     else "This device does not support Wi-Fi Direct."
             ))
             "getState" -> { refresh(); result.success(snapshot()) }
             "getInvitation" -> getInvitation(result)
+            "startNfcSharing" -> nfc.share(result, ::getInvitation)
+            "stopNfc" -> { nfc.cancel(); result.success(null) }
+            "readNfcInvitation" -> {
+                if (!supported || Build.VERSION.SDK_INT < 29) {
+                    result.error("unsupported", "NFC joining requires Android 10+ and Wi-Fi Direct.", null)
+                } else if (status in listOf("connecting", "connected", "disconnecting")) {
+                    result.error("busy", "Disconnect from the current group before reading an invitation.", null)
+                } else nfc.read(result)
+            }
             "createGroup", "discoverPeers", "joinGroup", "joinInvitation", "disconnect" -> {
                 if (pending != null) {
                     result.error("busy", "Another request is in progress.", null); return
@@ -342,6 +360,7 @@ class OfflineConnectivityPlugin : FlutterPlugin, ActivityAware,
                 watchConnection(token)
             }
             "disconnect" -> {
+                nfc.cancel()
                 status = "disconnecting"; emit()
                 fun removeExistingGroup() {
                     if (!attached || token != revision) return
@@ -387,7 +406,7 @@ class OfflineConnectivityPlugin : FlutterPlugin, ActivityAware,
     private fun getInvitation(result: MethodChannel.Result) {
         if (pending != null) { result.error("busy", "Another request is in progress.", null); return }
         if (status != "connected" || !isHost || !permitted()) {
-            result.error("not_host", "Create a group before showing its QR invitation.", null); return
+            result.error("not_host", "Create a group before sharing its invitation.", null); return
         }
         val ch = channel
         val mgr = manager
@@ -454,6 +473,7 @@ class OfflineConnectivityPlugin : FlutterPlugin, ActivityAware,
     override fun onCancel(arguments: Any?) { sink = null }
     override fun onAttachedToActivity(binding: ActivityPluginBinding) {
         activityBinding = binding
+        nfc.attach(binding.activity)
         binding.addRequestPermissionsResultListener(this)
         refresh()
     }
@@ -461,6 +481,7 @@ class OfflineConnectivityPlugin : FlutterPlugin, ActivityAware,
     override fun onDetachedFromActivityForConfigChanges() = detachActivity()
     override fun onDetachedFromActivity() = detachActivity()
     private fun detachActivity() {
+        nfc.detach()
         activityBinding?.removeRequestPermissionsResultListener(this)
         activityBinding = null
         if (afterPermission != null) fail("activity_detached", "Permission request interrupted. Please retry.")
@@ -470,6 +491,7 @@ class OfflineConnectivityPlugin : FlutterPlugin, ActivityAware,
         detachActivity()
         fail("detached", "Connection adapter closed.")
         attached = false
+        nfc.dispose()
         handler.removeCallbacksAndMessages(null)
         // Best effort cleanup; explicit disconnect is the reliable user-visible path.
         channel?.let { ch ->

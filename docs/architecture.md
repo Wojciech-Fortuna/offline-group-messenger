@@ -43,6 +43,11 @@ https://docs.flutter.dev/platform-integration/platform-channels
   Android 10+ joins with WifiP2pConfig.Builder SSID/passphrase; discovery remains
   available on older versions. mobile_scanner uses bundled ML Kit so first scan
   does not require Internet. qr_flutter renders a black-on-white QR in either theme.
+- Optional Android NFC uses a non-payment HostApduService and reader mode, not
+  Android Beam. A separate NfcInvitationController handles activity lifecycle,
+  timeouts and cancellation. InvitationApdu is a pure Kotlin protocol with JVM
+  tests. Both QR and NFC return the same validated GroupInvitation and require
+  the same confirmation before joinInvitation. No NFC chat transport is added.
 
 ## Next implementation steps
 
@@ -53,7 +58,7 @@ https://docs.flutter.dev/platform-integration/platform-channels
 4. Add durable delivery receipts, history synchronization and session resumption.
 5. Design authenticated encrypted messaging before claiming privacy. A wireless
    password is not a complete participant-authentication or end-to-end design.
-6. Add persistence and NFC experiments after messaging works.
+6. Add persistence and validate NFC invitations across physical phone models.
 
 The Android host leaving ends the group in the first prototype. Host migration,
 multi-hop forwarding and background operation are separate milestones.
