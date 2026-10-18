@@ -1,4 +1,4 @@
-/// Shared application model. Wire encoding will be specified before transport.
+/// A host-accepted message. IDs and timestamps are scoped to a chat session.
 class ChatMessage {
   const ChatMessage({
     required this.id,
@@ -6,6 +6,7 @@ class ChatMessage {
     required this.senderId,
     required this.text,
     required this.sentAt,
+    this.senderName = '',
   });
 
   final String id;
@@ -13,4 +14,5 @@ class ChatMessage {
   final String senderId;
   final String text;
   final DateTime sentAt;
+  final String senderName;
 }

@@ -3,7 +3,7 @@
 ## Stack and boundaries
 
 Flutter / Dart owns screens, themes, navigation, chat state, message models and
-the future TCP messaging layer. Kotlin owns Android Wi-Fi Direct integration.
+the TCP messaging layer. Kotlin owns Android Wi-Fi Direct integration.
 Swift owns future iOS connection integration. There is no cloud backend.
 
 The app depends on a local Flutter plugin, packages/offline_connectivity.
@@ -34,6 +34,11 @@ https://docs.flutter.dev/platform-integration/platform-channels
   60 seconds to catch missing broadcasts and rejected invitations. It can also
   be cancelled from the UI. Callback revisions discard obsolete operation results.
 - Shared message and participant models and a message transport interface.
+- TcpMessageTransport starts automatically on a connected native snapshot, using
+  the actual host address and TCP port 45871. Duplicate snapshots do not restart
+  chat. Network loss closes sockets; a new session or explicit retry starts fresh.
+  A shared chat screen observes transport state and retains drafts on send failure.
+  See chat-protocol.md for framing, bounds, host confirmation and limitations.
 - Host QR invitations use group network credentials fetched on explicit request.
   Android 10+ joins with WifiP2pConfig.Builder SSID/passphrase; discovery remains
   available on older versions. mobile_scanner uses bundled ML Kit so first scan
@@ -44,10 +49,8 @@ https://docs.flutter.dev/platform-integration/platform-channels
 1. Run the hardware checks in wifi-direct-testing.md on two or three phones.
 2. Add app-specific service discovery before treating all discovered peers as
    compatible messenger instances. Current discovery lists generic Wi-Fi peers.
-3. Dart: implement TCP framing, bounded versioned JSON messages, validation,
-   deduplication, acknowledgements and host fan-out. Transport should be injectable.
-4. Add lobby and chat screens with loading, denied permission, empty discovery,
-   disconnected, reconnecting and delivery-failed states.
+3. Validate TCP messaging on two and three phones, including range loss.
+4. Add durable delivery receipts, history synchronization and session resumption.
 5. Design authenticated encrypted messaging before claiming privacy. A wireless
    password is not a complete participant-authentication or end-to-end design.
 6. Add persistence and NFC experiments after messaging works.

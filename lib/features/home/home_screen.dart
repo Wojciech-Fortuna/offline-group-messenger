@@ -4,6 +4,8 @@ import 'package:flutter/services.dart';
 import 'package:offline_connectivity/offline_connectivity.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../invitations/scan_invitation_screen.dart';
+import '../../core/messaging/tcp_message_transport.dart';
+import '../chat/chat_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key, required this.connectivity});
@@ -22,6 +24,36 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _capabilityError = false;
   GroupInvitation? _invitation;
   int _groupEpoch = 0;
+  final _chat = TcpMessageTransport();
+  final _displayName = TextEditingController(text: 'Guest');
+  String? _chatConnection;
+
+  void _syncChat({bool retry = false}) {
+    final address = _connection.hostAddress;
+    final connected =
+        _connection.status == GroupStatus.connected && address != null;
+    final key = connected ? '${_connection.isHost}:$address' : null;
+    if (!retry && key == _chatConnection) return;
+    _chatConnection = key;
+    if (!connected) {
+      unawaited(_chat.close());
+      return;
+    }
+    _chat.displayName = _displayName.text;
+    if (_connection.isHost) {
+      unawaited(
+        _chat.startHost(
+          port: TcpMessageTransport.defaultPort,
+          address: address,
+        ),
+      );
+    } else {
+      unawaited(
+        _chat.connect(host: address, port: TcpMessageTransport.defaultPort),
+      );
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -53,6 +85,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 }
                 _error = state.errorMessage;
               });
+              _syncChat();
             }
           },
           onError: (Object error) {
@@ -179,6 +212,8 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     _subscription?.cancel();
+    _chat.dispose();
+    _displayName.dispose();
     super.dispose();
   }
 
@@ -224,6 +259,34 @@ class _HomeScreenState extends State<HomeScreen> {
                   'Create a group on one Android phone. Others can scan its QR invitation or find the host nearby.',
                 ),
                 const SizedBox(height: 16),
+                TextField(
+                  controller: _displayName,
+                  enabled: !occupied && !_running,
+                  maxLength: 32,
+                  decoration: const InputDecoration(
+                    labelText: 'Your chat name',
+                  ),
+                ),
+                if (_connection.status == GroupStatus.connected)
+                  ListenableBuilder(
+                    listenable: _chat,
+                    builder: (context, _) => OutlinedButton.icon(
+                      icon: const Icon(Icons.chat_bubble_outline),
+                      label: Text(
+                        _chat.status == ChatStatus.ready
+                            ? 'Open chat'
+                            : 'Open chat / connection status',
+                      ),
+                      onPressed: () => Navigator.of(context).push<void>(
+                        MaterialPageRoute(
+                          builder: (_) => ChatScreen(
+                            chat: _chat,
+                            retry: () => _syncChat(retry: true),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                 if (ready &&
                     _connection.status == GroupStatus.connected &&
                     _connection.isHost) ...[
@@ -390,7 +453,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ],
                 const SizedBox(height: 20),
                 const Text(
-                  'Connection prototype only — text messaging is coming next. '
+                  'Offline text chat is available after connecting. '
                   'Nearby devices may include phones that are not running this app.',
                 ),
               ],

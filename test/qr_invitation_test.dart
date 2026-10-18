@@ -132,7 +132,11 @@ void main() {
       addTearDown(connection.updates.close);
       await tester.pumpWidget(MessengerApp(connectivity: connection));
       await tester.pumpAndSettle();
-      await tester.ensureVisible(find.text('Scan group QR code'));
+      await tester.scrollUntilVisible(
+        find.text('Scan group QR code'),
+        150,
+        scrollable: find.byType(Scrollable).first,
+      );
       await tester.tap(find.text('Scan group QR code'));
       await tester.pumpAndSettle();
       final detect = tester
@@ -180,7 +184,11 @@ void main() {
     addTearDown(connection.updates.close);
     await tester.pumpWidget(MessengerApp(connectivity: connection));
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Scan group QR code'));
+    await tester.scrollUntilVisible(
+      find.text('Scan group QR code'),
+      150,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.tap(find.text('Scan group QR code'));
     await tester.pumpAndSettle();
     expect(find.textContaining('Camera unavailable.'), findsOneWidget);

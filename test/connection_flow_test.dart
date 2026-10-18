@@ -134,6 +134,11 @@ void main() {
     await tester.tap(find.text('Create a group'));
     await tester.pumpAndSettle();
     expect(find.text('Permission denied.'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.byType(FilledButton),
+      150,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(
       tester.widget<FilledButton>(find.byType(FilledButton)).onPressed,
       isNotNull,

@@ -9,7 +9,9 @@ The Android connection prototype supports permissions, creating a Wi-Fi Direct
 group, discovering nearby devices, joining and disconnecting. Flutter receives
 live connection state, discovered peers, host/participant role and Android's actual
 group-owner IP address. The Material 3 interface is shared with iOS, whose
-connection adapter remains a stub. Text messaging is not implemented yet.
+connection adapter remains a stub. Connected Android phones can exchange text
+messages through a shared Dart TCP chat layer, with host broadcasting, a live
+participant list and join/leave notices.
 
 Hosts can display a **group QR code**. On Android 10+, another phone can scan it,
 confirm the group and join without choosing a device from the discovery list.
@@ -23,7 +25,8 @@ lib/
   app/                         App entry and shared theme
   features/home/               Shared home screen
   core/models/                 Message and participant models
-  core/messaging/              Future shared TCP transport contract
+  features/chat/               Shared chat screen and participant list
+  core/messaging/              Shared TCP transport and contract
 android/                       Android app host (Kotlin)
 ios/                           iPhone app host (Swift / Xcode project)
 packages/offline_connectivity/
@@ -84,8 +87,19 @@ Use Flutter Material 3 for a shared, accessible UI; Figma is optional for sketch
 See [design](docs/design.md), [architecture](docs/architecture.md) and the
 [native bridge contract](docs/connectivity-contract.md).
 
-Next: verify groups on two or three Android phones, then implement the shared
-Dart message transport and chat screens. NFC, multi-hop and host migration are
+To chat: enter a display name before connecting, create or join a group, then
+tap **Open chat**. The host's chat server starts automatically, even while its
+QR invitation is displayed. All participants should keep the app in the foreground.
+Use the people button to see participants; return to the connection screen to
+disconnect. If the chat connection fails, use **Retry chat** or rejoin the group.
+
+This is a plaintext prototype without authenticated identities or end-to-end
+encryption. The last 500 messages are kept in memory, cleared when starting or
+retrying a chat session, and not replayed to new participants. Host confirmation
+means the host accepted a message, not that every participant read it.
+
+Next: run the two/three-phone [chat checks](docs/chat-protocol.md), then add
+authenticated encryption and persistence. NFC, multi-hop and host migration are
 later milestones.
 
 ## Original project concept
