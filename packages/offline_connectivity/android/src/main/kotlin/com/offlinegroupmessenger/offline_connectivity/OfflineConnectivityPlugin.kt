@@ -79,7 +79,7 @@ class OfflineConnectivityPlugin : FlutterPlugin, ActivityAware,
                 WifiP2pManager.WIFI_P2P_DISCOVERY_CHANGED_ACTION -> {
                     val discovering = intent.getIntExtra(WifiP2pManager.EXTRA_DISCOVERY_STATE, -1) ==
                         WifiP2pManager.WIFI_P2P_DISCOVERY_STARTED
-                    if (!discovering && status == "discovering") { status = "idle"; emit() }
+                    if (!discovering && status == "discovering" && discovery?.isSearching() != true) { status = "idle"; emit() }
                 }
             }
         }
@@ -113,6 +113,9 @@ class OfflineConnectivityPlugin : FlutterPlugin, ActivityAware,
                 errorCode = "discovery_unavailable"
                 errorMessage = "Public discovery is unavailable. Recreate the group or share its QR/NFC invitation."
                 if (attached) sink?.success(snapshot())
+            },
+            onSearchFinished = {
+                if (attached && status == "discovering") { status = "idle"; emit() }
             }
         ) }
         (context.applicationContext as Application).registerActivityLifecycleCallbacks(lifecycle)
@@ -343,10 +346,11 @@ class OfflineConnectivityPlugin : FlutterPlugin, ActivityAware,
             if (token == revision && pending != null) {
                 revision++ // Ignore late callbacks belonging to this timed-out request.
                 val previous = status
+                if (method == "discoverPeers") discovery?.stopSearch()
                 fail("timeout", "Android did not answer. Disconnect and try again.")
                 if (previous in listOf("connecting", "disconnecting")) { status = previous; emit() }
             }
-        }.also { handler.postDelayed(it, 15_000) }
+        }.also { handler.postDelayed(it, if (method == "discoverPeers") 55_000 else 15_000) }
         val listener = object : WifiP2pManager.ActionListener {
             override fun onSuccess() {
                 if (!attached || token != revision) return
