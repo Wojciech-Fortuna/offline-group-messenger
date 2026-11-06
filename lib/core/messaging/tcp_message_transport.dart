@@ -23,6 +23,8 @@ class TcpMessageTransport extends ChangeNotifier implements MessageTransport {
   TcpMessageTransport({this.confirmationTimeout = const Duration(seconds: 6)});
 
   static const protocolVersion = 3;
+  static const versionMismatchMessage =
+      'Incompatible chat version. Update the app on every phone, then rejoin the group.';
   static const defaultPort = 45871;
   static const maxTextLength = 2000;
   static const maxFrameBytes = 32768;
@@ -232,9 +234,18 @@ class TcpMessageTransport extends ChangeNotifier implements MessageTransport {
                 if (byte == 10) {
                   final frame = jsonDecode(utf8.decode(buffer));
                   buffer.clear();
-                  if (frame is! Map<String, dynamic> ||
-                      frame['v'] != protocolVersion) {
+                  if (frame is! Map<String, dynamic> || frame['v'] is! int) {
                     throw const FormatException('Invalid protocol version');
+                  }
+                  if (frame['v'] != protocolVersion) {
+                    if (_isHost) {
+                      error = versionMismatchMessage;
+                      _lost(socket);
+                      _notify();
+                    } else {
+                      _fail(versionMismatchMessage);
+                    }
+                    return;
                   }
                   _receive(socket, frame);
                 } else {
@@ -549,6 +560,7 @@ class TcpMessageTransport extends ChangeNotifier implements MessageTransport {
       _identities[token] = identity;
     }
     _peers[socket] = identity;
+    if (error == versionMismatchMessage) error = null;
     _participants.add(identity.participant);
     final oldest = _history.isEmpty ? _sequence + 1 : _history.first.sequence;
     final baseline = resume ? max(after, oldest - 1) : _sequence;

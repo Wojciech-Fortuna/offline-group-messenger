@@ -141,4 +141,56 @@ void main() {
     expect(bob.status, ChatStatus.offline);
     expect(bob.listeningPort, isNull);
   });
+
+  test(
+    'old client gets no chat membership and host explains the version mismatch',
+    () async {
+      final oldClient = await Socket.connect('127.0.0.1', host.listeningPort!);
+      final received = <int>[];
+      oldClient.listen(received.addAll, onError: (Object _) {});
+      addTearDown(oldClient.destroy);
+      oldClient.add(
+        utf8.encode(
+          '${jsonEncode({'v': 2, 'type': 'hello', 'name': 'Old client', 'after': 0})}\n',
+        ),
+      );
+      await until(
+        () => host.error == TcpMessageTransport.versionMismatchMessage,
+      );
+      expect(host.status, ChatStatus.ready);
+      expect(host.participants.length, 1);
+      expect(received, isEmpty);
+      await join(alice);
+      expect(host.error, isNull);
+      await alice.sendText('Compatible chat still works');
+      expect(host.messages.last.text, 'Compatible chat still works');
+    },
+  );
+
+  test(
+    'new client explains an old host response without accepting its session',
+    () async {
+      final oldHost = await ServerSocket.bind('127.0.0.1', 0);
+      final sockets = <Socket>[];
+      oldHost.listen((socket) {
+        sockets.add(socket);
+        socket.listen((_) {
+          socket.add(
+            utf8.encode('${jsonEncode({'v': 2, 'type': 'welcome'})}\n'),
+          );
+        }, onError: (Object _) {});
+      });
+      addTearDown(() async {
+        for (final socket in sockets) {
+          socket.destroy();
+        }
+        await oldHost.close();
+      });
+      await alice.connect(host: '127.0.0.1', port: oldHost.port);
+      await until(() => alice.status == ChatStatus.offline);
+      expect(alice.error, TcpMessageTransport.versionMismatchMessage);
+      expect(alice.selfId, isNull);
+      expect(alice.participants, isEmpty);
+    },
+  );
 }

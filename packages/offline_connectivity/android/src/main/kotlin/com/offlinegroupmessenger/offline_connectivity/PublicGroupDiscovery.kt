@@ -70,7 +70,9 @@ internal class PublicGroupDiscovery(
         stopSearch()
         scanning = true
         val revision = scanRevision
-        val req = WifiP2pDnsSdServiceRequest.newInstance(PublicGroupRecord.TYPE)
+        // The type-only overload asks for PTR records, but our listener validates
+        // TXT fields. Query the known instance explicitly to receive those fields.
+        val req = WifiP2pDnsSdServiceRequest.newInstance(PublicGroupRecord.INSTANCE, PublicGroupRecord.TYPE)
         request = req
         fun valid() = channel === ch && scanning && revision == scanRevision
         val failure = { reason: Int -> if (valid()) { stopSearch(); listener.onFailure(reason) } }
