@@ -105,9 +105,12 @@ encryption. The last 500 messages are kept in memory, cleared when starting or
 retrying a chat session, and not replayed to new participants. Host confirmation
 means the host accepted a message, not that every participant read it.
 
-Next: run the two/three-phone [chat checks](docs/chat-protocol.md), then add
-authenticated encryption and persistence. Multi-hop and host migration are
-later milestones.
+Next: implement reliable session recovery: preserve conversation state during
+retries, resume a participant's session, replay missed messages and retry uncertain
+sends without duplicates. See the ordered milestones and acceptance criteria in
+[the roadmap](docs/roadmap.md). Run the two/three-phone [chat checks](docs/chat-protocol.md)
+before declaring recovery hardware-validated. Authenticated encryption, durable
+storage and background operation follow; multi-hop and host migration come later.
 
 ## Original project concept
 

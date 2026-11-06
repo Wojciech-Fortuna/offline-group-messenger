@@ -18,7 +18,8 @@ Flutter hot reload alone does not rebuild the native plugin.
 6. Repeat with host/client roles reversed, then add a third phone if available.
 
 The current list contains generic Wi-Fi Direct peers, not only this app.
-The host may appear under its Android device name. There are no text messages yet.
+The host may appear under its Android device name. After connecting, use Open chat
+and run the messaging checks in [chat-protocol.md](chat-protocol.md).
 
 ## QR invitations
 

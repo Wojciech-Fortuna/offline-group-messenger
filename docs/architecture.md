@@ -51,14 +51,19 @@ https://docs.flutter.dev/platform-integration/platform-channels
 
 ## Next implementation steps
 
-1. Run the hardware checks in wifi-direct-testing.md on two or three phones.
-2. Add app-specific service discovery before treating all discovered peers as
-   compatible messenger instances. Current discovery lists generic Wi-Fi peers.
-3. Validate TCP messaging on two and three phones, including range loss.
-4. Add durable delivery receipts, history synchronization and session resumption.
-5. Design authenticated encrypted messaging before claiming privacy. A wireless
-   password is not a complete participant-authentication or end-to-end design.
-6. Add persistence and validate NFC invitations across physical phone models.
+The canonical sequence is in [roadmap.md](roadmap.md). The next implementation
+milestone is reliable session recovery: separate session state from screens and
+socket lifetimes, preserve drafts/history, resume participants, replay a bounded
+history and make message retries idempotent. Host acceptance remains distinct
+from recipient delivery or read receipts. This milestone uses memory only.
+
+Run the two/three-phone Wi-Fi Direct, chat and NFC checks and record device/OS
+versions and outcomes. No completed hardware-validation results are recorded yet.
+Automated recovery tests can be implemented here; they do not satisfy that gate.
+
+Authenticated encryption, durable storage and background operation follow.
+App-specific service discovery is also outstanding: current discovery lists
+generic Wi-Fi peers. QR/NFC already offer explicit invitations.
 
 The Android host leaving ends the group in the first prototype. Host migration,
 multi-hop forwarding and background operation are separate milestones.
