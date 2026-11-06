@@ -4,11 +4,13 @@ Implemented milestone: application-level receipt acknowledgements, not read rece
 
 - One check: the host accepted the message.
 - Two checks: at least one other client received it from the host.
-- Three checks: every intended client received it. Completion takes precedence
+- Three checks: every intended recipient, including the host, received it. Completion takes precedence
   over two checks, so one recipient can move directly from one to three.
-- The host snapshots connected clients at acceptance, excluding the sender.
+- The host snapshots connected participants at acceptance, excluding the sender.
   Leaving does not reduce that set; later joins do not expand it. The host itself
-  is covered by the first check. No intended clients means one check only.
+  is recorded as received at acceptance. With a host and one guest, both senders
+  reach three checks once the other phone receives the message. A host sending
+  alone has no recipients and stays at one check.
 - Tap checks for recipient names and received/awaiting-confirmation status.
   Pending and failed host acceptance keep their existing sending/retry UI.
 - A receipt means the recipient app validated and recorded the message in memory,
@@ -30,7 +32,10 @@ including those already covered by the replay cursor. This recovers a receipt
 lost after the app recorded its message. Duplicate receipts are harmless.
 
 The host sends `delivery` only to the message's sender, containing `id`, `sequence`,
-and `recipients` (`id`, `name`, boolean `received`). Targets are fixed at acceptance.
+and `recipients` (`id`, `name`, boolean `received`). The `hostId` field identifies
+host acceptance separately from forwarded receipts for the two-check stage.
+Targets are fixed at acceptance. Render each check separately so the three-check
+state is visually unambiguous on phones.
 The host sender reads the same state locally. Sender resumption resends retained
 delivery snapshots independently of the message replay cursor, so receipts received
 while the sender was away can still update old messages. Duplicate send retries
