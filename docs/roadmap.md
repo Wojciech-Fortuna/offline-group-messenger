@@ -44,6 +44,11 @@ Automated loopback tests do not establish physical-radio interoperability.
 
 ## 3. Authenticated encryption
 
+Requested delivery milestone (in progress): one check for host acceptance, two
+for receipt by at least one other client, three for all clients targeted when the
+host accepted the message. See [delivery-receipts.md](delivery-receipts.md) for
+receipt semantics, protocol v3 and validation. These are not read receipts.
+
 Preceding usability/admission milestone (implemented): deliberate participant
 leave/rejoin now retains history; successful sends use a small checkmark instead
 of repeated Host confirmed text. Public groups advertise through app-specific
