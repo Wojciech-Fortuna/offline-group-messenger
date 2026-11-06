@@ -9,7 +9,7 @@ Flutter hot reload alone does not rebuild the native plugin.
    Location on both. Internet/mobile data are not required.
 2. On phone A, select Public and Create a group. Grant Nearby devices on Android 13+, or
    precise Location on older Android. Wait for Connected / You are the host.
-3. On phone B, select Find public groups and grant permissions. Select Join
+3. On phone B, select Find nearby groups and grant permissions. Select Join
    beside phone A. Accept Android's system invitation on either phone if shown.
 4. Wait for Connected / Participant on B. Both phones must report the same host
    IP. Record the actual value; do not assume a particular address.
@@ -23,6 +23,10 @@ Discovery must explicitly request the TXT record for
 `OfflineMessenger._ogm._tcp.local.`: the type-only DNS-SD request returns PTR
 service responses, while this app validates public/protocol markers in TXT data.
 See the [Android request API](https://developer.android.com/reference/android/net/wifi/p2p/nsd/WifiP2pDnsSdServiceRequest).
+Foreground searches retry up to four cycles, 12 seconds apart, using an all-DNS-SD
+request after the targeted attempt; results still require valid public TXT markers.
+Use the OfflineDiscovery log tag to distinguish registered advertisements, started
+scans, accepted public responses and Android failures without logging secrets.
 Test Private creation separately with NFC using group-modes.md. After connecting, use Open chat
 and run the messaging checks in [chat-protocol.md](chat-protocol.md).
 

@@ -15,7 +15,10 @@ participant list and join/leave notices.
 
 Choose **Private** (NFC invitations only) or **Public** when creating a group.
 Private groups do not appear in the app's discovery list and require an NFC-issued
-secret for new chat participants. Public groups appear under Find public groups.
+secret for new chat participants. Find nearby groups lists public discoveries and
+your remembered private group after successful NFC admission. A remembered entry
+checks availability when rejoining; it is not a public advertisement. Private hosts
+can remove online/offline members from Participants. See [membership](docs/private-membership.md).
 This is invitation-only membership, not encrypted chat or an invisible Wi-Fi signal.
 See [group modes](docs/group-modes.md).
 

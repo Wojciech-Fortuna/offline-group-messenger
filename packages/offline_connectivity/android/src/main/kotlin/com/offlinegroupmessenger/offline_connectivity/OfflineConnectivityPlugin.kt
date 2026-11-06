@@ -243,6 +243,20 @@ class OfflineConnectivityPlugin : FlutterPlugin, ActivityAware,
             ))
             "getState" -> { refresh(); result.success(snapshot()) }
             "getInvitation" -> getInvitation(result)
+            "rotatePrivateAdmission" -> {
+                val args = call.arguments as? Map<*, *>
+                val previous = args?.get("previous") as? String
+                val next = args?.get("next") as? String
+                if (pending != null || status != "connected" || !isHost || !privateGroup ||
+                    previous == null || previous != admissionToken || next == null ||
+                    next == previous || !next.matches(Regex("[0-9a-f]{64}"))) {
+                    result.error("membership_changed", "Private group changed. Retry from the participant list.", null)
+                } else {
+                    nfc.stopSharing()
+                    admissionToken = next
+                    result.success(null)
+                }
+            }
             "startNfcSharing" -> nfc.share(result) { getInvitation(it, viaNfc = true) }
             "stopNfc" -> { nfc.cancel(); result.success(null) }
             "readNfcInvitation" -> {

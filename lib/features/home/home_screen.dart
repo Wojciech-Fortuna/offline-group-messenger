@@ -10,8 +10,9 @@ import '../../core/messaging/chat_session_controller.dart';
 import '../chat/chat_screen.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key, required this.connectivity});
+  const HomeScreen({super.key, required this.connectivity, this.chat});
   final OfflineConnectivity connectivity;
+  final ChatSessionController? chat;
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
@@ -28,14 +29,52 @@ class _HomeScreenState extends State<HomeScreen> {
   int _groupEpoch = 0;
   bool _privateMode = false;
   bool _modeSelected = false;
-  final _chat = ChatSessionController();
+  bool _showNearby = false;
+  bool _disconnectingRevoked = false;
+  late final ChatSessionController _chat;
   final _displayName = TextEditingController(text: 'Guest');
 
   @override
   void initState() {
     super.initState();
+    _chat = widget.chat ?? ChatSessionController();
+    _chat.addListener(_membershipChanged);
     _load();
   }
+
+  void _membershipChanged() {
+    if (mounted &&
+        _chat.transport.membershipRevoked &&
+        !_connection.isHost &&
+        _connection.status == GroupStatus.connected &&
+        !_disconnectingRevoked) {
+      _disconnectingRevoked = true;
+      unawaited(
+        widget.connectivity
+            .disconnect()
+            .catchError((Object _) {
+              if (mounted) {
+                setState(
+                  () => _error =
+                      'Access removed. Disconnect from the Wi-Fi group to continue.',
+                );
+              }
+            })
+            .whenComplete(() => _disconnectingRevoked = false),
+      );
+    }
+  }
+
+  Future<void> _findNearby() async {
+    setState(() => _showNearby = true);
+    await _run(widget.connectivity.discoverPeers);
+  }
+
+  Future<void> _removePrivateMember(String id) => _chat.removePrivateMember(
+    id,
+    rotateInvitation: (previous, next) => widget.connectivity
+        .rotatePrivateAdmission(previous: previous, next: next),
+  );
 
   Future<void> _load() async {
     setState(() {
@@ -216,7 +255,8 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     _subscription?.cancel();
-    _chat.dispose();
+    _chat.removeListener(_membershipChanged);
+    if (widget.chat == null) _chat.dispose();
     _displayName.dispose();
     super.dispose();
   }
@@ -284,7 +324,10 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       onPressed: () => Navigator.of(context).push<void>(
                         MaterialPageRoute(
-                          builder: (_) => ChatScreen(chat: _chat),
+                          builder: (_) => ChatScreen(
+                            chat: _chat,
+                            removePrivateMember: _removePrivateMember,
+                          ),
                         ),
                       ),
                     ),
@@ -448,10 +491,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 const SizedBox(height: 8),
                 OutlinedButton(
-                  onPressed: canStart
-                      ? () => _run(widget.connectivity.discoverPeers)
-                      : null,
-                  child: const Text('Find public groups'),
+                  onPressed: canStart ? _findNearby : null,
+                  child: const Text('Find nearby groups'),
                 ),
                 if (ready && (_capabilities?.canJoinQr ?? false))
                   OutlinedButton.icon(
@@ -486,6 +527,33 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: LinearProgressIndicator(),
                   ),
                 if (ready && !occupied) ...[
+                  if (_showNearby)
+                    ListenableBuilder(
+                      listenable: _chat,
+                      builder: (context, _) {
+                        final remembered = _chat.rememberedPrivateGroup;
+                        if (remembered == null) return const SizedBox.shrink();
+                        return ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: const Icon(Icons.lock_outline),
+                          title: const Text('Your private group'),
+                          subtitle: const Text(
+                            'Remembered from NFC. Availability is checked when rejoining.',
+                          ),
+                          trailing: TextButton(
+                            onPressed: canStart
+                                ? () => _run(() async {
+                                    _chat.prepareJoin(invitation: remembered);
+                                    await widget.connectivity.joinInvitation(
+                                      remembered,
+                                    );
+                                  })
+                                : null,
+                            child: const Text('Rejoin'),
+                          ),
+                        );
+                      },
+                    ),
                   const SizedBox(height: 16),
                   Text(
                     'Nearby public groups',
@@ -495,7 +563,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: 12),
                       child: Text(
-                        'No public groups listed. Enable Wi-Fi and Location, then search. Private groups require an NFC invitation.',
+                        'No public groups listed. Enable Wi-Fi and Location, then search. First-time private joining requires NFC.',
                       ),
                     ),
                   for (final peer in _connection.peers)
@@ -523,7 +591,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 const SizedBox(height: 20),
                 const Text(
                   'Offline text chat is available after connecting. '
-                  'Discovery lists public groups running this app. NFC is an alternative way to join, not the chat transport.',
+                  'Search lists public groups and your remembered private group. New private members join by NFC.',
                 ),
               ],
             ),

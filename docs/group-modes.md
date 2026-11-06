@@ -26,7 +26,7 @@ continue over Wi-Fi Direct/TCP; the phones must remain within the host's range.
 ## Public: discovery, QR or NFC
 
 Public hosts advertise the `_ogm._tcp` Wi-Fi Direct DNS-SD service with app, protocol
-and public-mode markers. Find public groups lists matching service responses;
+and public-mode markers. Find nearby groups lists matching public service responses;
 generic Wi-Fi devices and private hosts are excluded. Advertisements never contain
 Wi-Fi passwords or admission/resume tokens. Entries expire after 60 seconds without
 a fresh response, so a recently ended public group can briefly remain listed.
@@ -39,11 +39,16 @@ using generic peer lists can still detect a private Wi-Fi device at the radio le
 ## History and limits
 
 Leaving as a participant pauses reconnect attempts without clearing history or
-drafts. Choose to rejoin the same live group (NFC again for private network joining)
+drafts. Choose Rejoin on the remembered private entry under Find nearby groups
 to resume the same chat identity and receive retained missed messages. Admission
 does not have to be repeated for a TCP-only reconnect with a valid resume token.
 Ending the host group ends that chat session; starting a new conversation is
 explicit. History, invitations and session credentials are not persisted to disk.
+
+The remembered entry appears only after successful private admission and does not
+claim the host is currently nearby. Hosts can remove online/offline members;
+revoked identities cannot resume and old admission invitations expire. Other
+established members still resume. See private-membership.md for rotation and limits.
 
 Private currently means NFC-invited membership and no in-app public advertisement.
 It does NOT mean encrypted, anonymous, or invisible. Admission/resume tokens are

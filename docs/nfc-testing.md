@@ -18,7 +18,9 @@
    accept any Android connection prompts.
 5. Once connected, open chat on both and exchange messages. NFC carries only the
    invitation; ongoing communication remains Wi-Fi Direct/TCP. Verify there is no
-   QR-sharing action for the private host and it is absent from Find public groups.
+   QR-sharing action for the private host and an uninvited phone cannot discover it.
+   After successful admission, leave and use Find nearby groups / Rejoin without
+   another tap; the remembered entry checks host availability only on joining.
    Repeat with a Public group to verify public NFC and QR alternatives.
 
 ## Recovery and privacy checks on hardware

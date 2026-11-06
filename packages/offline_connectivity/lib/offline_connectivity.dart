@@ -34,6 +34,13 @@ class OfflineConnectivity {
   Future<void> joinGroup(String peerId) =>
       _channel.invokeMethod<void>('joinGroup', {'peerId': peerId});
   Future<void> disconnect() => _channel.invokeMethod<void>('disconnect');
+  Future<void> rotatePrivateAdmission({
+    required String previous,
+    required String next,
+  }) => _channel.invokeMethod<void>('rotatePrivateAdmission', {
+    'previous': previous,
+    'next': next,
+  });
   Future<GroupInvitation> getInvitation() async {
     final result = await _channel.invokeMapMethod<String, dynamic>(
       'getInvitation',

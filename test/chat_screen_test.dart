@@ -64,7 +64,56 @@ class FakeTransport extends TcpMessageTransport {
   }
 }
 
+class PrivateHostTransport extends FakeTransport {
+  @override
+  bool get canManagePrivateMembers => true;
+  @override
+  List<Participant> get participants => const [
+    Participant(id: 'me', displayName: 'Host'),
+  ];
+  @override
+  List<Participant> get members => const [
+    Participant(id: 'me', displayName: 'Host'),
+    Participant(id: 'bob', displayName: 'Bob'),
+  ];
+}
+
 void main() {
+  testWidgets(
+    'host can remove offline private member only after confirmation',
+    (tester) async {
+      final transport = PrivateHostTransport()
+        ..status = ChatStatus.ready
+        ..selfId = 'me';
+      final chat = ChatSessionController(transport: transport);
+      addTearDown(chat.dispose);
+      final removed = <String>[];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChatScreen(
+            chat: chat,
+            removePrivateMember: (id) async => removed.add(id),
+          ),
+        ),
+      );
+      await tester.tap(find.byIcon(Icons.people_outline));
+      await tester.pumpAndSettle();
+      expect(find.text('Offline member'), findsOneWidget);
+      expect(find.byTooltip('Remove Host'), findsNothing);
+      await tester.tap(find.byTooltip('Remove Bob'));
+      await tester.pumpAndSettle();
+      expect(find.text('Remove Bob?'), findsOneWidget);
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      expect(removed, isEmpty);
+      await tester.tap(find.byTooltip('Remove Bob'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Remove'));
+      await tester.pumpAndSettle();
+      expect(removed, ['bob']);
+    },
+  );
+
   testWidgets('one, two and three checks expose live recipient details', (
     tester,
   ) async {

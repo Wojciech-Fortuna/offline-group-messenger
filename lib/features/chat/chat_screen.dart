@@ -4,8 +4,9 @@ import '../../core/messaging/tcp_message_transport.dart';
 import '../../core/messaging/chat_session_controller.dart';
 
 class ChatScreen extends StatefulWidget {
-  const ChatScreen({super.key, required this.chat});
+  const ChatScreen({super.key, required this.chat, this.removePrivateMember});
   final ChatSessionController chat;
+  final Future<void> Function(String id)? removePrivateMember;
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -51,6 +52,42 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
     );
     if (confirmed == true && mounted) widget.chat.startNewChat();
+  }
+
+  Future<void> _removeMember(String id, String name) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Remove $name?'),
+        content: const Text(
+          'Their saved access will stop working. Older NFC invitations will also expire. They can join again only with a new NFC invitation.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      await widget.removePrivateMember!(id);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Could not remove this member. Check the group connection and retry.',
+            ),
+          ),
+        );
+      }
+    }
   }
 
   String _deliveryLabel(String id) {
@@ -177,12 +214,35 @@ class _ChatScreenState extends State<ChatScreen> {
                     child: ListView(
                       children: [
                         const ListTile(title: Text('Participants')),
-                        for (final p in chat.participants)
+                        for (final p in chat.members)
                           ListTile(
                             title: Text(p.displayName),
                             subtitle: Text(
-                              p.id == chat.selfId ? 'You' : 'Connected',
+                              p.id == chat.selfId
+                                  ? 'You'
+                                  : chat.participants.any(
+                                      (active) => active.id == p.id,
+                                    )
+                                  ? 'Connected'
+                                  : 'Offline member',
                             ),
+                            trailing:
+                                widget.removePrivateMember != null &&
+                                    chat.canManagePrivateMembers &&
+                                    p.id != chat.selfId
+                                ? IconButton(
+                                    tooltip: 'Remove ${p.displayName}',
+                                    onPressed: chat.removingMember
+                                        ? null
+                                        : () => _removeMember(
+                                            p.id,
+                                            p.displayName,
+                                          ),
+                                    icon: const Icon(
+                                      Icons.person_remove_outlined,
+                                    ),
+                                  )
+                                : null,
                           ),
                       ],
                     ),

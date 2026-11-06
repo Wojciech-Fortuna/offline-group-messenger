@@ -14,6 +14,7 @@ Codec: Flutter StandardMethodCodec.
 | discoverPeers | none | null when Android accepts DNS-SD discovery of public messenger groups |
 | joinGroup | {peerId: string} | null when Android accepts connection to a discovered peer |
 | disconnect | none | null after discovery/negotiation cleanup and group removal |
+| rotatePrivateAdmission | previous/next admission secrets | host-only private rotation; stops NFC sharing, rejects stale expected secret or busy/changed group |
 | getInvitation | none | Public host QR invitation; private hosts return private_group |
 | joinInvitation | invitation map | null when Android accepts credential-based joining (API 29+) |
 | startNfcSharing | none | null after current host credentials are fetched and HCE sharing enabled for up to 60 seconds |

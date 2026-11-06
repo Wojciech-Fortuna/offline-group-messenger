@@ -26,8 +26,11 @@ See [delivery-receipts.md](delivery-receipts.md) and [roadmap.md](roadmap.md).
 
 ## Connection prototype
 
-The home screen offers Private/Public selection, Create a group and Find public groups. Discovered public hosts
-have Join actions; connected sessions show the device role and actual host IP.
+The home screen offers Private/Public selection, Create a group and Find nearby groups. Discovered public hosts
+have Join actions; a previously admitted private member also gets a remembered
+Rejoin entry, whose availability is checked on connection. Connected sessions show
+the device role and actual host IP. Private hosts can remove online/offline members
+from Participants after confirmation.
 Users can cancel discovery/connection or disconnect; hosts confirm ending the
 group. Permission failures and disabled Wi-Fi/Location have recovery messages.
 Users enter a display name before connecting. The host starts its TCP chat server

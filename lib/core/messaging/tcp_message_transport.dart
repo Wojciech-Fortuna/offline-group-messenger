@@ -16,6 +16,7 @@ class _Identity {
   _Identity(this.participant);
   final Participant participant;
   int lastRequest = 0;
+  bool revoked = false;
 }
 
 /// Foreground, in-memory protocol v3. Resume tokens are NOT authenticated identity.
@@ -64,11 +65,29 @@ class TcpMessageTransport extends ChangeNotifier implements MessageTransport {
   String? error;
   String? historyWarning;
   bool sessionEnded = false;
+  bool membershipRevoked = false;
   ChatStatus status = ChatStatus.offline;
   int? get listeningPort => _server?.port;
   String? get groupId => _groupId;
   List<ChatMessage> get messages => List.unmodifiable(_messages);
   List<Participant> get participants => List.unmodifiable(_participants);
+  bool get canManagePrivateMembers =>
+      _isHost &&
+      hostAdmissionToken != null &&
+      status == ChatStatus.ready &&
+      !sessionEnded;
+  List<Participant> get members => canManagePrivateMembers
+      ? [
+          if (_hostIdentity != null) _hostIdentity!.participant,
+          for (final identity in _identities.values)
+            if (!identity.revoked) identity.participant,
+        ]
+      : participants;
+  bool canRemoveMember(String id) =>
+      canManagePrivateMembers &&
+      _identities.values.any(
+        (identity) => !identity.revoked && identity.participant.id == id,
+      );
   MessageDelivery? deliveryFor(String messageId) => _delivery[messageId];
   @override
   Stream<ChatMessage> get incoming => _incoming.stream;
@@ -98,6 +117,7 @@ class TcpMessageTransport extends ChangeNotifier implements MessageTransport {
     _sequence = 0;
     _nextRequest = 0;
     sessionEnded = false;
+    membershipRevoked = false;
     historyWarning = null;
     error = null;
     _notify();
@@ -342,6 +362,7 @@ class TcpMessageTransport extends ChangeNotifier implements MessageTransport {
     }
     switch (type) {
       case 'ended':
+        membershipRevoked = frame['code'] == 'revoked';
         _end(_string(frame['reason'], 200));
       case 'welcome':
         if (_welcomed) throw const FormatException('Duplicate welcome');
@@ -529,6 +550,14 @@ class TcpMessageTransport extends ChangeNotifier implements MessageTransport {
     if (resume) {
       token = _string(frame['token'], 64);
       final existing = _identities[token];
+      if (frame['groupId'] == _groupId && existing?.revoked == true) {
+        _rejectSession(
+          socket,
+          'The host removed you from this private group. A new NFC invitation is required.',
+          code: 'revoked',
+        );
+        return;
+      }
       if (frame['groupId'] != _groupId ||
           existing == null ||
           after > _sequence) {
@@ -588,10 +617,44 @@ class TcpMessageTransport extends ChangeNotifier implements MessageTransport {
     _write(socket, {'type': 'synced', 'through': _sequence});
   }
 
-  void _rejectSession(Socket socket, String reason) {
-    _write(socket, {'type': 'ended', 'reason': reason});
+  void _rejectSession(Socket socket, String reason, {String? code}) {
+    _write(socket, {
+      'type': 'ended',
+      'reason': reason,
+      if (code != null) 'code': code,
+    });
     _peers.remove(socket);
     _drain(socket);
+  }
+
+  /// Call only after the native NFC payload has been rotated successfully.
+  void removePrivateMember(
+    String participantId, {
+    required String newAdmissionToken,
+  }) {
+    if (!canRemoveMember(participantId) ||
+        !RegExp(r'^[0-9a-f]{64}$').hasMatch(newAdmissionToken) ||
+        newAdmissionToken == hostAdmissionToken) {
+      throw StateError(
+        'Private membership changed. Refresh the participant list.',
+      );
+    }
+    final identity = _identities.values.singleWhere(
+      (i) => i.participant.id == participantId,
+    );
+    hostAdmissionToken = newAdmissionToken;
+    identity.revoked = true;
+    for (final entry in _peers.entries.toList()) {
+      if (identical(entry.value, identity)) {
+        _rejectSession(
+          entry.key,
+          'The host removed you from this private group. A new NFC invitation is required.',
+          code: 'revoked',
+        );
+      }
+    }
+    _participants.removeWhere((p) => p.id == participantId);
+    _roster('${identity.participant.displayName} was removed');
   }
 
   Map<String, Object?> _frame(ChatMessage message, {String type = 'message'}) =>

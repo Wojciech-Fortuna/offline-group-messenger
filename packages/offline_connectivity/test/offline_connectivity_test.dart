@@ -85,6 +85,21 @@ void main() {
     );
   });
 
+  test(
+    'private membership rotation passes expected and replacement credentials',
+    () async {
+      messenger.setMockMethodCallHandler(channel, (call) async {
+        expect(call.method, 'rotatePrivateAdmission');
+        expect(call.arguments, {'previous': 'a' * 64, 'next': 'b' * 64});
+        return null;
+      });
+      await const OfflineConnectivity().rotatePrivateAdmission(
+        previous: 'a' * 64,
+        next: 'b' * 64,
+      );
+    },
+  );
+
   test('connection snapshot preserves actual host address and role', () async {
     messenger.setMockMethodCallHandler(
       channel,

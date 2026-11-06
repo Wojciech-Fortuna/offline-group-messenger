@@ -41,6 +41,9 @@ class ChatSessionController extends ChangeNotifier {
   String draft = '';
   String? sendError;
   String? _configurationError;
+  GroupInvitation? _joinCandidate;
+  GroupInvitation? _rememberedPrivateGroup;
+  bool _removingMember = false;
 
   ChatStatus get status => transport.status;
   String? get selfId => transport.selfId;
@@ -54,6 +57,10 @@ class ChatSessionController extends ChangeNotifier {
       _connection.status == GroupStatus.connected &&
       _connection.hostAddress != null;
   List<Participant> get participants => transport.participants;
+  List<Participant> get members => transport.members;
+  bool get canManagePrivateMembers => transport.canManagePrivateMembers;
+  bool get removingMember => _removingMember;
+  GroupInvitation? get rememberedPrivateGroup => _rememberedPrivateGroup;
   MessageDelivery? deliveryFor(String messageId) =>
       transport.deliveryFor(messageId);
   List<SessionMessage> get messages => [
@@ -63,6 +70,15 @@ class ChatSessionController extends ChangeNotifier {
   ];
 
   void _changed() {
+    if (sessionEnded) {
+      _rememberedPrivateGroup = null;
+      _joinCandidate = null;
+    } else if (transport.status == ChatStatus.ready && _joinCandidate != null) {
+      _rememberedPrivateGroup = _joinCandidate!.privateGroup
+          ? _joinCandidate
+          : null;
+      _joinCandidate = null;
+    }
     if (!_disposed) notifyListeners();
   }
 
@@ -165,6 +181,8 @@ class ChatSessionController extends ChangeNotifier {
     _draftRequest = null;
     sendError = null;
     _configurationError = null;
+    _joinCandidate = null;
+    _rememberedPrivateGroup = null;
     _left = false;
     _roleChanged = false;
     _connectionKey = null;
@@ -176,13 +194,7 @@ class ChatSessionController extends ChangeNotifier {
   /// Called before creating the native group. Private admission stays out of discovery.
   String? configureGroup({required bool privateGroup}) {
     beginNewSession();
-    final random = Random.secure();
-    transport.hostAdmissionToken = privateGroup
-        ? List.generate(
-            32,
-            (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0'),
-          ).join()
-        : null;
+    transport.hostAdmissionToken = privateGroup ? _newAdmissionToken() : null;
     transport.invitationToken = null;
     return transport.hostAdmissionToken;
   }
@@ -194,7 +206,46 @@ class ChatSessionController extends ChangeNotifier {
       resumeJoining();
     }
     transport.invitationToken = invitation?.admissionToken;
+    _joinCandidate = invitation;
     transport.hostAdmissionToken = null;
+  }
+
+  static String _newAdmissionToken() {
+    final random = Random.secure();
+    return List.generate(
+      32,
+      (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0'),
+    ).join();
+  }
+
+  Future<void> removePrivateMember(
+    String participantId, {
+    required Future<void> Function(String previous, String next)
+    rotateInvitation,
+  }) async {
+    if (_removingMember || !transport.canRemoveMember(participantId)) {
+      throw StateError('This private member cannot be removed now.');
+    }
+    final generation = _generation;
+    final group = transport.groupId;
+    final previous = transport.hostAdmissionToken!;
+    final next = _newAdmissionToken();
+    _removingMember = true;
+    _changed();
+    try {
+      await rotateInvitation(previous, next);
+      if (_disposed ||
+          generation != _generation ||
+          group != transport.groupId ||
+          transport.hostAdmissionToken != previous ||
+          !transport.canRemoveMember(participantId)) {
+        throw StateError('The group changed while removing this member.');
+      }
+      transport.removePrivateMember(participantId, newAdmissionToken: next);
+    } finally {
+      _removingMember = false;
+      _changed();
+    }
   }
 
   void startNewChat() {

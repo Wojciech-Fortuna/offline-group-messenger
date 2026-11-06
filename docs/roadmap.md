@@ -44,7 +44,7 @@ Automated loopback tests do not establish physical-radio interoperability.
 
 ## 3. Authenticated encryption
 
-Membership/discovery follow-up in progress: remembered private rejoin, host removal
+Membership/discovery follow-up implemented (hardware verification pending): remembered private rejoin, host removal
 with resume revocation/admission rotation, and bounded service discovery recovery.
 See [private-membership.md](private-membership.md) for scope and acceptance.
 
