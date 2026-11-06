@@ -131,15 +131,18 @@ class _ChatScreenState extends State<ChatScreen> {
           minimumSize: const Size(48, 48),
           padding: const EdgeInsets.symmetric(horizontal: 4),
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (var i = 0; i < checks; i++)
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 1),
-                child: Icon(Icons.check, size: 14),
-              ),
-          ],
+        child: SizedBox(
+          width: 14 + (checks - 1) * 7,
+          height: 14,
+          child: Stack(
+            children: [
+              for (var i = 0; i < checks; i++)
+                Positioned(
+                  left: i * 7,
+                  child: const Icon(Icons.check, size: 14),
+                ),
+            ],
+          ),
         ),
       ),
     );
