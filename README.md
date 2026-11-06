@@ -33,7 +33,7 @@ lib/
   features/home/               Shared home screen
   core/models/                 Message and participant models
   features/chat/               Shared chat screen and participant list
-  core/messaging/              Shared TCP transport and contract
+  core/messaging/              Session controller, TCP transport and contract
 android/                       Android app host (Kotlin)
 ios/                           iPhone app host (Swift / Xcode project)
 packages/offline_connectivity/
@@ -98,19 +98,27 @@ To chat: enter a display name before connecting, create or join a group, then
 tap **Open chat**. The host's chat server starts automatically, even while its
 QR invitation is displayed. All participants should keep the app in the foreground.
 Use the people button to see participants; return to the connection screen to
-disconnect. If the chat connection fails, use **Retry chat** or rejoin the group.
+disconnect. If the chat connection fails, use **Retry chat** or rejoin the same
+group. Client history and drafts survive retries and navigating away from chat;
+returning clients resume their identity and receive retained missed messages.
+Unconfirmed sends stay visible with **Retry message** and keep their original ID.
+The app does not automatically resend uncertain messages. A changed/ended host
+session requires an explicit new chat; old outgoing messages are never carried
+into it. All phones must run chat protocol v2 (rebuild/update older installations).
 
 This is a plaintext prototype without authenticated identities or end-to-end
-encryption. The last 500 messages are kept in memory, cleared when starting or
-retrying a chat session, and not replayed to new participants. Host confirmation
-means the host accepted a message, not that every participant read it.
+encryption. The last 500 messages/notices are kept in memory. The host separately
+retains 500 text messages for returning participants; a warning appears when some
+missed history has expired. First-time participants do not receive old history.
+Starting a new chat or restarting the process clears local conversation state.
+Host confirmation means the host accepted a message, not that every participant
+received or read it. Storage is not durable.
 
-Next: implement reliable session recovery: preserve conversation state during
-retries, resume a participant's session, replay missed messages and retry uncertain
-sends without duplicates. See the ordered milestones and acceptance criteria in
-[the roadmap](docs/roadmap.md). Run the two/three-phone [chat checks](docs/chat-protocol.md)
-before declaring recovery hardware-validated. Authenticated encryption, durable
-storage and background operation follow; multi-hop and host migration come later.
+Session recovery is implemented and covered by automated tests. Run the
+two/three-phone [chat checks](docs/chat-protocol.md) before declaring it
+hardware-validated. Next implementation: authenticated encryption, followed by
+durable storage and background operation. See [the roadmap](docs/roadmap.md)
+for acceptance criteria and remaining milestones.
 
 ## Original project concept
 

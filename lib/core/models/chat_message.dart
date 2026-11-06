@@ -7,6 +7,7 @@ class ChatMessage {
     required this.text,
     required this.sentAt,
     this.senderName = '',
+    this.sequence = 0,
   });
 
   final String id;
@@ -15,4 +16,7 @@ class ChatMessage {
   final String text;
   final DateTime sentAt;
   final String senderName;
+
+  /// Host ordering cursor; zero for local notices and unsent messages.
+  final int sequence;
 }

@@ -1,45 +1,61 @@
 import 'package:flutter/material.dart';
 
 import '../../core/messaging/tcp_message_transport.dart';
+import '../../core/messaging/chat_session_controller.dart';
 
 class ChatScreen extends StatefulWidget {
-  const ChatScreen({super.key, required this.chat, required this.retry});
-  final TcpMessageTransport chat;
-  final VoidCallback retry;
+  const ChatScreen({super.key, required this.chat});
+  final ChatSessionController chat;
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
 }
 
 class _ChatScreenState extends State<ChatScreen> {
-  final _text = TextEditingController();
-  bool _sending = false;
-  String? _error;
+  late final TextEditingController _text;
 
-  Future<void> _send() async {
-    final draft = _text.text;
-    if (draft.trim().isEmpty || _sending) return;
-    setState(() {
-      _sending = true;
-      _error = null;
-    });
-    try {
-      await widget.chat.sendText(draft);
-      if (mounted && _text.text == draft) _text.clear();
-    } catch (_) {
-      if (mounted) {
-        setState(
-          () => _error =
-              'Host confirmation not received. Your draft is kept; check the conversation before retrying.',
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _sending = false);
+  @override
+  void initState() {
+    super.initState();
+    _text = TextEditingController(text: widget.chat.draft);
+    widget.chat.addListener(_syncDraft);
+  }
+
+  void _syncDraft() {
+    if (_text.text != widget.chat.draft) {
+      _text.value = TextEditingValue(
+        text: widget.chat.draft,
+        selection: TextSelection.collapsed(offset: widget.chat.draft.length),
+      );
     }
+  }
+
+  Future<void> _startNewChat() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Start a new chat?'),
+        content: const Text(
+          'This clears this phone\'s old history, draft and unconfirmed messages. They will not be sent to the new session.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Start new chat'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) widget.chat.startNewChat();
   }
 
   @override
   void dispose() {
+    widget.chat.removeListener(_syncDraft);
     _text.dispose();
     super.dispose();
   }
@@ -49,7 +65,7 @@ class _ChatScreenState extends State<ChatScreen> {
     listenable: widget.chat,
     builder: (context, _) {
       final chat = widget.chat;
-      final ready = chat.status == ChatStatus.ready;
+      final ready = chat.status == ChatStatus.ready && !chat.sessionEnded;
       final messages = chat.messages;
       return Scaffold(
         appBar: AppBar(
@@ -86,22 +102,41 @@ class _ChatScreenState extends State<ChatScreen> {
             children: [
               ListTile(
                 dense: true,
-                title: Text(switch (chat.status) {
-                  ChatStatus.ready => 'Chat connected',
-                  ChatStatus.connecting => 'Connecting to chat...',
-                  ChatStatus.offline => 'Chat disconnected',
-                }),
+                title: Text(
+                  chat.sessionEnded
+                      ? 'Chat session ended'
+                      : switch (chat.status) {
+                          ChatStatus.ready => 'Chat connected',
+                          ChatStatus.connecting => 'Connecting to chat...',
+                          ChatStatus.offline => 'Chat disconnected',
+                        },
+                ),
                 subtitle: Text(
                   chat.error ??
                       'Prototype: no end-to-end encryption. History is kept in memory only.',
                 ),
-                trailing: chat.status == ChatStatus.offline
+                trailing: chat.sessionEnded && chat.networkConnected
                     ? TextButton(
-                        onPressed: widget.retry,
+                        onPressed: _startNewChat,
+                        child: const Text('Start new chat'),
+                      )
+                    : chat.status == ChatStatus.offline && !chat.sessionEnded
+                    ? TextButton(
+                        onPressed: chat.networkConnected ? chat.retry : null,
                         child: const Text('Retry chat'),
                       )
                     : null,
               ),
+              if (chat.historyWarning != null)
+                Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Text(chat.historyWarning!),
+                ),
+              if (!chat.networkConnected)
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16),
+                  child: Text('Rejoin the host\'s Wi-Fi group to resume chat.'),
+                ),
               Expanded(
                 child: messages.isEmpty
                     ? const Center(child: Text('No messages yet. Say hello!'))
@@ -110,7 +145,8 @@ class _ChatScreenState extends State<ChatScreen> {
                         padding: const EdgeInsets.all(16),
                         itemCount: messages.length,
                         itemBuilder: (context, index) {
-                          final message = messages[messages.length - 1 - index];
+                          final entry = messages[messages.length - 1 - index];
+                          final message = entry.message;
                           if (message.senderId.isEmpty) {
                             return Padding(
                               padding: const EdgeInsets.all(8),
@@ -144,6 +180,27 @@ class _ChatScreenState extends State<ChatScreen> {
                                       ),
                                       const SizedBox(height: 4),
                                       SelectableText(message.text),
+                                      if (mine) ...[
+                                        const SizedBox(height: 4),
+                                        Text(switch (entry.delivery) {
+                                          DeliveryState.pending =>
+                                            'Pending host confirmation',
+                                          DeliveryState.confirmed =>
+                                            'Host confirmed',
+                                          DeliveryState.failed =>
+                                            'Failed / unconfirmed',
+                                        }),
+                                        if (entry.delivery ==
+                                            DeliveryState.failed)
+                                          TextButton(
+                                            onPressed: ready && !chat.sending
+                                                ? () => chat.retryMessage(
+                                                    '${message.senderId}:${message.id}',
+                                                  )
+                                                : null,
+                                            child: const Text('Retry message'),
+                                          ),
+                                      ],
                                     ],
                                   ),
                                 ),
@@ -153,11 +210,11 @@ class _ChatScreenState extends State<ChatScreen> {
                         },
                       ),
               ),
-              if (_error != null)
+              if (chat.sendError != null)
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Text(
-                    _error!,
+                    chat.sendError!,
                     style: TextStyle(
                       color: Theme.of(context).colorScheme.error,
                     ),
@@ -171,7 +228,8 @@ class _ChatScreenState extends State<ChatScreen> {
                     Expanded(
                       child: TextField(
                         controller: _text,
-                        enabled: ready && !_sending,
+                        enabled: !chat.sending,
+                        onChanged: (value) => chat.draft = value,
                         minLines: 1,
                         maxLines: 4,
                         maxLength: TcpMessageTransport.maxTextLength,
@@ -182,9 +240,13 @@ class _ChatScreenState extends State<ChatScreen> {
                       ),
                     ),
                     IconButton(
-                      tooltip: _sending ? 'Waiting for host' : 'Send message',
-                      onPressed: ready && !_sending ? _send : null,
-                      icon: Icon(_sending ? Icons.hourglass_top : Icons.send),
+                      tooltip: chat.sending
+                          ? 'Waiting for host'
+                          : 'Send message',
+                      onPressed: ready && !chat.sending ? chat.sendDraft : null,
+                      icon: Icon(
+                        chat.sending ? Icons.hourglass_top : Icons.send,
+                      ),
                     ),
                   ],
                 ),

@@ -6,6 +6,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import '../invitations/scan_invitation_screen.dart';
 import '../invitations/nfc_invitation_screen.dart';
 import '../../core/messaging/tcp_message_transport.dart';
+import '../../core/messaging/chat_session_controller.dart';
 import '../chat/chat_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -25,35 +26,8 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _capabilityError = false;
   GroupInvitation? _invitation;
   int _groupEpoch = 0;
-  final _chat = TcpMessageTransport();
+  final _chat = ChatSessionController();
   final _displayName = TextEditingController(text: 'Guest');
-  String? _chatConnection;
-
-  void _syncChat({bool retry = false}) {
-    final address = _connection.hostAddress;
-    final connected =
-        _connection.status == GroupStatus.connected && address != null;
-    final key = connected ? '${_connection.isHost}:$address' : null;
-    if (!retry && key == _chatConnection) return;
-    _chatConnection = key;
-    if (!connected) {
-      unawaited(_chat.close());
-      return;
-    }
-    _chat.displayName = _displayName.text;
-    if (_connection.isHost) {
-      unawaited(
-        _chat.startHost(
-          port: TcpMessageTransport.defaultPort,
-          address: address,
-        ),
-      );
-    } else {
-      unawaited(
-        _chat.connect(host: address, port: TcpMessageTransport.defaultPort),
-      );
-    }
-  }
 
   @override
   void initState() {
@@ -86,7 +60,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 }
                 _error = state.errorMessage;
               });
-              _syncChat();
+              _chat.updateConnection(state, displayName: _displayName.text);
             }
           },
           onError: (Object error) {
@@ -165,7 +139,10 @@ class _HomeScreenState extends State<HomeScreen> {
       );
       if (leave != true || !mounted) return;
     }
-    await _run(widget.connectivity.disconnect);
+    await _run(() async {
+      await widget.connectivity.disconnect();
+      await _chat.leave();
+    });
   }
 
   Future<void> _showInvitation() => _run(() async {
@@ -222,6 +199,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
     if (confirm == true && mounted) {
+      if (_chat.sessionEnded) _chat.beginNewSession();
       await _run(() => widget.connectivity.joinInvitation(invitation));
     }
   }
@@ -284,7 +262,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     labelText: 'Your chat name',
                   ),
                 ),
-                if (_connection.status == GroupStatus.connected)
+                if (_connection.status == GroupStatus.connected ||
+                    _chat.hasConversation)
                   ListenableBuilder(
                     listenable: _chat,
                     builder: (context, _) => OutlinedButton.icon(
@@ -296,10 +275,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       onPressed: () => Navigator.of(context).push<void>(
                         MaterialPageRoute(
-                          builder: (_) => ChatScreen(
-                            chat: _chat,
-                            retry: () => _syncChat(retry: true),
-                          ),
+                          builder: (_) => ChatScreen(chat: _chat),
                         ),
                       ),
                     ),
@@ -407,7 +383,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 const SizedBox(height: 16),
                 FilledButton(
                   onPressed: canStart
-                      ? () => _run(widget.connectivity.createGroup)
+                      ? () => _run(() async {
+                          _chat.beginNewSession();
+                          await widget.connectivity.createGroup();
+                        })
                       : null,
                   child: const Text('Create a group'),
                 ),
@@ -476,9 +455,10 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       trailing: TextButton(
                         onPressed: canStart
-                            ? () => _run(
-                                () => widget.connectivity.joinGroup(peer.id),
-                              )
+                            ? () => _run(() async {
+                                if (_chat.sessionEnded) _chat.beginNewSession();
+                                await widget.connectivity.joinGroup(peer.id);
+                              })
                             : null,
                         child: const Text('Join'),
                       ),

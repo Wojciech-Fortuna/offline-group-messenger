@@ -81,9 +81,10 @@ void main() {
       expect(alice.messages.last.text, 'Bob left');
       await host.close();
       await until(() => alice.status == ChatStatus.offline);
-      expect(alice.error, contains('Host disconnected'));
+      expect(alice.sessionEnded, isTrue);
       await expectLater(alice.sendText('Lost'), throwsStateError);
       await host.startHost(port: 0, address: '127.0.0.1');
+      alice.resetSession();
       await join(alice);
       await alice.sendText('Rejoined');
       expect(host.messages.last.text, 'Rejoined');
@@ -115,14 +116,14 @@ void main() {
       socket.listen((_) {});
       addTearDown(socket.destroy);
       final hello = utf8.encode(
-        '${jsonEncode({'v': 1, 'type': 'hello', 'name': 'Raw'})}\n',
+        '${jsonEncode({'v': 2, 'type': 'hello', 'name': 'Raw', 'after': 0})}\n',
       );
       socket.add(hello.sublist(0, 8));
       await socket.flush();
       socket.add(hello.sublist(8));
       await until(() => host.participants.length == 2);
       final frame =
-          '${jsonEncode({'v': 1, 'type': 'send', 'id': 'request1', 'text': 'Hello', 'senderId': host.selfId})}\n';
+          '${jsonEncode({'v': 2, 'type': 'send', 'id': '1', 'text': 'Hello', 'senderId': host.selfId})}\n';
       socket.add(utf8.encode('$frame$frame'));
       await until(() => host.messages.any((m) => m.text == 'Hello'));
       await Future<void>.delayed(const Duration(milliseconds: 50));

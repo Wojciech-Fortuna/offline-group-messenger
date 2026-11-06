@@ -34,11 +34,19 @@ https://docs.flutter.dev/platform-integration/platform-channels
   60 seconds to catch missing broadcasts and rejected invitations. It can also
   be cancelled from the UI. Callback revisions discard obsolete operation results.
 - Shared message and participant models and a message transport interface.
-- TcpMessageTransport starts automatically on a connected native snapshot, using
-  the actual host address and TCP port 45871. Duplicate snapshots do not restart
-  chat. Network loss closes sockets; a new session or explicit retry starts fresh.
-  A shared chat screen observes transport state and retains drafts on send failure.
-  See chat-protocol.md for framing, bounds, host confirmation and limitations.
+- ChatSessionController owns conversation history, drafts, outgoing message states
+  and native connection coordination outside HomeScreen. TcpMessageTransport owns
+  sockets, the resume handshake, host replay/acceptance caches and ordering cursors.
+  The controller starts chat on a connected native snapshot using the actual host
+  address and TCP port 45871. Duplicate snapshots do not restart chat.
+- Client network loss suspends sockets without clearing session state. A restored
+  connected snapshot resumes automatically; TCP-only loss offers Retry chat.
+  Retry message preserves its request ID. Replay reconciles uncertain sends with
+  host-accepted messages. No automatic resend of uncertain sends is performed.
+- Host departure or a changed host session ends the conversation. Explicit new
+  chat clears local history/draft/outbox; rejoining never silently sends them to
+  a different group. Everything remains in memory, scoped to this app process.
+  See chat-protocol.md for protocol v2, bounded replay and retry limitations.
 - Host QR invitations use group network credentials fetched on explicit request.
   Android 10+ joins with WifiP2pConfig.Builder SSID/passphrase; discovery remains
   available on older versions. mobile_scanner uses bundled ML Kit so first scan
@@ -51,11 +59,9 @@ https://docs.flutter.dev/platform-integration/platform-channels
 
 ## Next implementation steps
 
-The canonical sequence is in [roadmap.md](roadmap.md). The next implementation
-milestone is reliable session recovery: separate session state from screens and
-socket lifetimes, preserve drafts/history, resume participants, replay a bounded
-history and make message retries idempotent. Host acceptance remains distinct
-from recipient delivery or read receipts. This milestone uses memory only.
+The canonical sequence is in [roadmap.md](roadmap.md). Session recovery is
+implemented with automated coverage. Host acceptance remains distinct from
+recipient delivery or read receipts. This milestone uses memory only.
 
 Run the two/three-phone Wi-Fi Direct, chat and NFC checks and record device/OS
 versions and outcomes. No completed hardware-validation results are recorded yet.

@@ -11,50 +11,92 @@ import 'message_transport.dart';
 
 enum ChatStatus { offline, connecting, ready }
 
-/// Foreground-only, plaintext prototype. The host is the message authority.
+class _Identity {
+  _Identity(this.participant);
+  final Participant participant;
+  int lastRequest = 0;
+}
+
+/// Foreground, in-memory protocol v2. Resume tokens are NOT authenticated identity.
 class TcpMessageTransport extends ChangeNotifier implements MessageTransport {
+  TcpMessageTransport({this.confirmationTimeout = const Duration(seconds: 6)});
+
+  static const protocolVersion = 2;
   static const defaultPort = 45871;
   static const maxTextLength = 2000;
   static const maxFrameBytes = 32768;
+  static const historyLimit = 500;
+  static const acceptanceLimit = 1000;
+  static const identityLimit = 128;
+  final Duration confirmationTimeout;
   final _incoming = StreamController<ChatMessage>.broadcast();
   final _messages = <ChatMessage>[];
+  final _history = <ChatMessage>[];
+  final _accepted = <String, ChatMessage>{};
   final _participants = <Participant>[];
-  final _peers = <Socket, Participant?>{};
+  final _peers = <Socket, _Identity?>{};
+  final _identities = <String, _Identity>{};
   final _pending = <String, Completer<void>>{};
-  final _seen = <String>{};
   ServerSocket? _server;
   Socket? _host;
   Timer? _heartbeat;
+  _Identity? _hostIdentity;
   int _epoch = 0;
+  int _sequence = 0;
+  int _nextRequest = 0;
   bool _disposed = false;
   bool _isHost = false;
+  bool _welcomed = false;
+  bool _hasRoster = false;
   String displayName = 'Guest';
   String? selfId;
   String? _groupId;
+  String? _resumeToken;
   String? error;
+  String? historyWarning;
+  bool sessionEnded = false;
   ChatStatus status = ChatStatus.offline;
   int? get listeningPort => _server?.port;
+  String? get groupId => _groupId;
   List<ChatMessage> get messages => List.unmodifiable(_messages);
   List<Participant> get participants => List.unmodifiable(_participants);
   @override
   Stream<ChatMessage> get incoming => _incoming.stream;
 
+  static final _random = Random.secure();
   static String _id() => List.generate(
     16,
-    (_) => Random.secure().nextInt(256).toRadixString(16).padLeft(2, '0'),
+    (_) => _random.nextInt(256).toRadixString(16).padLeft(2, '0'),
   ).join();
 
   void _notify() {
     if (!_disposed) notifyListeners();
   }
 
-  void _reset() {
+  /// Explicit new conversation only. Reconnecting never calls this.
+  void resetSession() {
     _stop();
     _messages.clear();
-    _seen.clear();
+    _history.clear();
+    _accepted.clear();
+    _identities.clear();
+    _hostIdentity = null;
     selfId = null;
     _groupId = null;
+    _resumeToken = null;
+    _sequence = 0;
+    _nextRequest = 0;
+    sessionEnded = false;
+    historyWarning = null;
     error = null;
+    _notify();
+  }
+
+  void _prepare() {
+    _stop();
+    error = null;
+    _welcomed = false;
+    _hasRoster = false;
     status = ChatStatus.connecting;
     _notify();
   }
@@ -64,9 +106,10 @@ class TcpMessageTransport extends ChangeNotifier implements MessageTransport {
     required int port,
     String address = '0.0.0.0',
   }) async {
-    _reset();
-    final epoch = _epoch;
+    resetSession();
     _isHost = true;
+    _prepare();
+    final epoch = _epoch;
     try {
       final server = await ServerSocket.bind(address, port);
       if (epoch != _epoch) {
@@ -76,26 +119,31 @@ class TcpMessageTransport extends ChangeNotifier implements MessageTransport {
       _server = server;
       selfId = _id();
       _groupId = _id();
-      _participants.add(
+      _hostIdentity = _Identity(
         Participant(id: selfId!, displayName: _name(displayName)),
       );
+      _participants.add(_hostIdentity!.participant);
       status = ChatStatus.ready;
-      server.listen((socket) {
-        if (epoch != _epoch || _peers.length >= 15) {
-          socket.destroy();
-          return;
-        }
-        _peers[socket] = null;
-        _listen(socket, epoch);
-        // A silent socket must not reserve a participant slot indefinitely.
-        Future<void>.delayed(const Duration(seconds: 5), () {
-          if (epoch == _epoch &&
-              _peers.containsKey(socket) &&
-              _peers[socket] == null) {
-            _lost(socket);
+      server.listen(
+        (socket) {
+          if (epoch != _epoch || _peers.length >= 15) {
+            socket.destroy();
+            return;
           }
-        });
-      }, onError: (Object _) => _fail('Chat server stopped. Retry chat.'));
+          _peers[socket] = null;
+          _listen(socket, epoch);
+          Future<void>.delayed(const Duration(seconds: 5), () {
+            if (epoch == _epoch &&
+                _peers.containsKey(socket) &&
+                _peers[socket] == null) {
+              _lost(socket);
+            }
+          });
+        },
+        onError: (Object _) {
+          if (epoch == _epoch) _end('Host chat stopped. Create a new group.');
+        },
+      );
       _startHeartbeat();
       _notify();
     } catch (_) {
@@ -105,10 +153,10 @@ class TcpMessageTransport extends ChangeNotifier implements MessageTransport {
 
   @override
   Future<void> connect({required String host, required int port}) async {
-    _reset();
-    final epoch = _epoch;
+    if (sessionEnded) return;
     _isHost = false;
-    // Wi-Fi can be ready a little before the host has bound its server.
+    _prepare();
+    final epoch = _epoch;
     for (var attempt = 0; attempt < 5 && epoch == _epoch; attempt++) {
       try {
         final socket = await Socket.connect(
@@ -122,11 +170,17 @@ class TcpMessageTransport extends ChangeNotifier implements MessageTransport {
         }
         _host = socket;
         _listen(socket, epoch);
-        _write(socket, {'type': 'hello', 'name': _name(displayName)});
+        _write(socket, {
+          'type': 'hello',
+          'name': _name(displayName),
+          'after': _sequence,
+          if (_resumeToken != null) 'token': _resumeToken,
+          if (_groupId != null) 'groupId': _groupId,
+        });
         _startHeartbeat();
         Future<void>.delayed(const Duration(seconds: 5), () {
           if (epoch == _epoch && status == ChatStatus.connecting) {
-            _fail('Host did not accept the chat handshake. Retry chat.');
+            _fail('Host did not finish chat synchronization. Retry chat.');
           }
         });
         return;
@@ -137,7 +191,7 @@ class TcpMessageTransport extends ChangeNotifier implements MessageTransport {
       }
     }
     if (epoch == _epoch) {
-      _fail('Cannot reach the host chat server. Retry chat.');
+      _fail('Cannot reach the host. Retry chat or rejoin its Wi-Fi group.');
     }
   }
 
@@ -161,14 +215,15 @@ class TcpMessageTransport extends ChangeNotifier implements MessageTransport {
         .timeout(const Duration(seconds: 35))
         .listen(
           (bytes) {
-            if (epoch != _epoch) return;
             try {
               for (final byte in bytes) {
+                if (epoch != _epoch) return;
                 if (byte == 10) {
                   final frame = jsonDecode(utf8.decode(buffer));
                   buffer.clear();
-                  if (frame is! Map<String, dynamic> || frame['v'] != 1) {
-                    throw const FormatException('Invalid protocol');
+                  if (frame is! Map<String, dynamic> ||
+                      frame['v'] != protocolVersion) {
+                    throw const FormatException('Invalid protocol version');
                   }
                   _receive(socket, frame);
                 } else {
@@ -179,7 +234,7 @@ class TcpMessageTransport extends ChangeNotifier implements MessageTransport {
                 }
               }
             } catch (_) {
-              _lost(socket);
+              if (epoch == _epoch) _lost(socket);
             }
           },
           onError: (Object _) {
@@ -199,6 +254,21 @@ class TcpMessageTransport extends ChangeNotifier implements MessageTransport {
     return value;
   }
 
+  static int _number(Object? value) {
+    if (value is! int || value < 0 || value > 9007199254740991) {
+      throw const FormatException('Invalid sequence');
+    }
+    return value;
+  }
+
+  static int _request(String id) {
+    final value = int.tryParse(id);
+    if (value == null || value <= 0 || value.toString() != id) {
+      throw const FormatException('Invalid request ID');
+    }
+    return _number(value);
+  }
+
   static String _name(String value) => value.trim().isEmpty
       ? 'Guest'
       : value.trim().substring(0, min(value.trim().length, 32));
@@ -212,77 +282,227 @@ class TcpMessageTransport extends ChangeNotifier implements MessageTransport {
     if (type == 'pong') return;
     if (_isHost) {
       if (!_peers.containsKey(socket)) return;
-      final peer = _peers[socket];
-      if (type == 'hello' && peer == null) {
-        final participant = Participant(
-          id: _id(),
-          displayName: _string(frame['name'], 32),
-        );
-        _peers[socket] = participant;
-        _participants.add(participant);
-        _write(socket, {
-          'type': 'welcome',
-          'selfId': participant.id,
-          'groupId': _groupId,
-        });
-        _roster('${participant.displayName} joined');
-      } else if (type == 'send' && peer != null) {
-        _accept(
-          peer,
-          _string(frame['id'], 64),
-          _string(frame['text'], maxTextLength),
-        );
+      final identity = _peers[socket];
+      if (type == 'hello' && identity == null) {
+        _hello(socket, frame);
+      } else if (type == 'send' && identity != null) {
+        final request = _string(frame['id'], 16);
+        try {
+          _accept(
+            identity,
+            request,
+            _string(frame['text'], maxTextLength),
+            socket: socket,
+          );
+        } on StateError catch (e) {
+          _write(socket, {
+            'type': 'rejected',
+            'id': request,
+            'reason': e.message,
+          });
+        }
       } else {
         throw const FormatException('Unexpected frame');
       }
-    } else {
-      switch (type) {
-        case 'welcome':
-          if (selfId != null) throw const FormatException('Duplicate welcome');
-          selfId = _string(frame['selfId'], 64);
-          _groupId = _string(frame['groupId'], 64);
-        case 'roster':
-          if (selfId == null) throw const FormatException('Missing welcome');
-          final list = frame['participants'];
-          if (list is! List || list.length > 16) {
-            throw const FormatException('Invalid roster');
+      return;
+    }
+    switch (type) {
+      case 'ended':
+        _end(_string(frame['reason'], 200));
+      case 'welcome':
+        if (_welcomed) throw const FormatException('Duplicate welcome');
+        final group = _string(frame['groupId'], 64);
+        final id = _string(frame['selfId'], 64);
+        final token = _string(frame['token'], 64);
+        if (_groupId != null &&
+            (group != _groupId || id != selfId || token != _resumeToken)) {
+          _end('The host session changed. Start a new chat explicitly.');
+          return;
+        }
+        final baseline = _number(frame['baseline']);
+        if (_groupId != null && baseline < _sequence) {
+          throw const FormatException('Cursor went backwards');
+        }
+        selfId = id;
+        _groupId = group;
+        _resumeToken = token;
+        _sequence = baseline;
+        if (frame['gap'] == true) {
+          historyWarning =
+              'Some missed messages are no longer available from the host.';
+        }
+        _welcomed = true;
+      case 'roster':
+        if (!_welcomed) throw const FormatException('Missing welcome');
+        final list = frame['participants'];
+        if (list is! List || list.isEmpty || list.length > 16) {
+          throw const FormatException('Invalid roster');
+        }
+        final participants = list
+            .map(
+              (p) => Participant(
+                id: _string(p['id'], 64),
+                displayName: _string(p['name'], 32),
+              ),
+            )
+            .toList();
+        if (participants.map((p) => p.id).toSet().length !=
+                participants.length ||
+            !participants.any((p) => p.id == selfId)) {
+          throw const FormatException('Invalid identities');
+        }
+        _participants
+          ..clear()
+          ..addAll(participants);
+        _hasRoster = true;
+        _notice(_string(frame['notice'], 100));
+      case 'synced':
+        if (!_welcomed ||
+            !_hasRoster ||
+            _number(frame['through']) != _sequence ||
+            status != ChatStatus.connecting) {
+          throw const FormatException('Incomplete replay');
+        }
+        status = ChatStatus.ready;
+        _notify();
+      case 'message':
+      case 'ack':
+        if (!_welcomed || !_hasRoster) throw const FormatException('Not ready');
+        final message = ChatMessage(
+          id: _string(frame['id'], 130),
+          groupId: _groupId!,
+          senderId: _string(frame['senderId'], 64),
+          senderName: _string(frame['name'], 32),
+          text: _string(frame['text'], maxTextLength),
+          sentAt: DateTime.parse(_string(frame['time'], 40)),
+          sequence: _number(frame['sequence']),
+        );
+        if (message.sequence == 0) {
+          throw const FormatException('Invalid message cursor');
+        }
+        if (type == 'message') {
+          if (message.sequence != _sequence + 1) {
+            throw const FormatException('Message gap');
           }
-          final participants = list
-              .map(
-                (p) => Participant(
-                  id: _string(p['id'], 64),
-                  displayName: _string(p['name'], 32),
-                ),
-              )
-              .toList();
-          _participants
-            ..clear()
-            ..addAll(participants);
-          status = ChatStatus.ready;
-          _notice(_string(frame['notice'], 100));
-        case 'message':
-          if (status != ChatStatus.ready) {
-            throw const FormatException('Not ready');
-          }
-          final message = ChatMessage(
-            id: _string(frame['id'], 130),
-            groupId: _groupId!,
-            senderId: _string(frame['senderId'], 64),
-            senderName: _string(frame['name'], 32),
-            text: _string(frame['text'], maxTextLength),
-            sentAt: DateTime.parse(_string(frame['time'], 40)),
-          );
-          _record(message);
-          _pending.remove(message.id)?.complete();
-        default:
-          throw const FormatException('Unknown frame');
-      }
+          _sequence = message.sequence;
+        } else if (message.senderId != selfId || message.sequence > _sequence) {
+          throw const FormatException('Invalid acknowledgement');
+        }
+        _record(message);
+        _pending.remove(message.id)?.complete();
+      case 'rejected':
+        if (!_welcomed) throw const FormatException('Missing welcome');
+        final id = '$selfId:${_string(frame['id'], 16)}';
+        _pending
+            .remove(id)
+            ?.completeError(StateError(_string(frame['reason'], 200)));
+      default:
+        throw const FormatException('Unknown frame');
     }
   }
 
-  void _accept(Participant sender, String requestId, String text) {
+  void _hello(Socket socket, Map<String, dynamic> frame) {
+    final name = _string(frame['name'], 32);
+    final after = _number(frame['after']);
+    final resume = frame['token'] != null || frame['groupId'] != null;
+    String token;
+    _Identity identity;
+    if (resume) {
+      token = _string(frame['token'], 64);
+      final existing = _identities[token];
+      if (frame['groupId'] != _groupId ||
+          existing == null ||
+          after > _sequence) {
+        _rejectSession(
+          socket,
+          'The previous host session is no longer available. Start a new chat explicitly.',
+        );
+        return;
+      }
+      identity = existing;
+      for (final entry in _peers.entries.toList()) {
+        if (identical(entry.value, identity)) {
+          _peers.remove(entry.key);
+          entry.key.destroy();
+        }
+      }
+      _participants.removeWhere((p) => p.id == identity.participant.id);
+    } else {
+      if (after != 0) throw const FormatException('New participant cursor');
+      if (_identities.length >= identityLimit) {
+        _rejectSession(
+          socket,
+          'This session has reached its participant limit. Ask the host to start a new group.',
+        );
+        return;
+      }
+      token = _id();
+      identity = _Identity(Participant(id: _id(), displayName: name));
+      _identities[token] = identity;
+    }
+    _peers[socket] = identity;
+    _participants.add(identity.participant);
+    final oldest = _history.isEmpty ? _sequence + 1 : _history.first.sequence;
+    final baseline = resume ? max(after, oldest - 1) : _sequence;
+    _write(socket, {
+      'type': 'welcome',
+      'selfId': identity.participant.id,
+      'groupId': _groupId,
+      'token': token,
+      'baseline': baseline,
+      'gap': resume && after < oldest - 1,
+    });
+    _roster(
+      '${identity.participant.displayName} ${resume ? 'rejoined' : 'joined'}',
+    );
+    if (resume) {
+      for (final message in _history) {
+        if (message.sequence > baseline) _write(socket, _frame(message));
+      }
+    }
+    _write(socket, {'type': 'synced', 'through': _sequence});
+  }
+
+  void _rejectSession(Socket socket, String reason) {
+    _write(socket, {'type': 'ended', 'reason': reason});
+    _peers.remove(socket);
+    _drain(socket);
+  }
+
+  Map<String, Object?> _frame(ChatMessage message, {String type = 'message'}) =>
+      {
+        'type': type,
+        'id': message.id,
+        'senderId': message.senderId,
+        'name': message.senderName,
+        'text': message.text,
+        'time': message.sentAt.toIso8601String(),
+        'sequence': message.sequence,
+      };
+
+  void _accept(
+    _Identity identity,
+    String requestId,
+    String text, {
+    Socket? socket,
+  }) {
+    final request = _request(requestId);
+    final sender = identity.participant;
     final id = '${sender.id}:$requestId';
-    if (_seen.contains(id)) return;
+    final previous = _accepted[id];
+    if (previous != null) {
+      if (previous.text != text) {
+        throw StateError('A retry must keep the original message text.');
+      }
+      if (socket != null) _write(socket, _frame(previous, type: 'ack'));
+      return;
+    }
+    if (request <= identity.lastRequest) {
+      throw StateError(
+        'This old request cannot be confirmed safely. It will not be sent again.',
+      );
+    }
+    identity.lastRequest = request;
     final message = ChatMessage(
       id: id,
       groupId: _groupId!,
@@ -290,23 +510,29 @@ class TcpMessageTransport extends ChangeNotifier implements MessageTransport {
       senderName: sender.displayName,
       text: text,
       sentAt: DateTime.now().toUtc(),
+      sequence: ++_sequence,
     );
+    _accepted[id] = message;
+    if (_accepted.length > acceptanceLimit) {
+      _accepted.remove(_accepted.keys.first);
+    }
+    _history.add(message);
+    if (_history.length > historyLimit) _history.removeAt(0);
     _record(message);
-    _broadcast({
-      'type': 'message',
-      'id': id,
-      'senderId': sender.id,
-      'name': sender.displayName,
-      'text': text,
-      'time': message.sentAt.toIso8601String(),
-    });
+    _broadcast(_frame(message));
   }
 
   void _record(ChatMessage message) {
-    if (!_seen.add(message.id)) return;
-    if (_seen.length > 1000) _seen.remove(_seen.first);
-    _messages.add(message);
-    if (_messages.length > 500) _messages.removeAt(0);
+    if (_messages.any((m) => m.id == message.id)) return;
+    final index = message.sequence == 0
+        ? -1
+        : _messages.indexWhere((m) => m.sequence > message.sequence);
+    if (index < 0) {
+      _messages.add(message);
+    } else {
+      _messages.insert(index, message);
+    }
+    if (_messages.length > historyLimit) _messages.removeAt(0);
     _incoming.add(message);
     _notify();
   }
@@ -341,29 +567,41 @@ class TcpMessageTransport extends ChangeNotifier implements MessageTransport {
 
   void _write(Socket socket, Map<String, Object?> frame) {
     try {
-      socket.add(utf8.encode('${jsonEncode({'v': 1, ...frame})}\n'));
+      socket.add(
+        utf8.encode('${jsonEncode({'v': protocolVersion, ...frame})}\n'),
+      );
     } catch (_) {
       _lost(socket);
     }
   }
 
-  Future<void> sendText(String text) => send(
-    ChatMessage(
-      id: _id(),
-      groupId: _groupId ?? '',
-      senderId: selfId ?? '',
-      text: text.trim(),
-      sentAt: DateTime.now(),
-    ),
-  );
+  ChatMessage createMessage(String text) {
+    if (status != ChatStatus.ready) throw StateError('Chat is disconnected');
+    return ChatMessage(
+      id: '${++_nextRequest}',
+      groupId: _groupId!,
+      senderId: selfId!,
+      senderName: displayName,
+      text: _string(text.trim(), maxTextLength),
+      sentAt: DateTime.now().toUtc(),
+    );
+  }
+
+  Future<void> sendText(String text) async => send(createMessage(text));
 
   @override
   Future<void> send(ChatMessage message) async {
-    if (status != ChatStatus.ready) throw StateError('Chat is disconnected');
+    if (status != ChatStatus.ready || sessionEnded) {
+      throw StateError('Chat is disconnected');
+    }
+    if (message.groupId != _groupId || message.senderId != selfId) {
+      throw StateError('Message belongs to another session');
+    }
     final text = _string(message.text, maxTextLength);
-    final requestId = _string(message.id, 64);
+    final requestId = _string(message.id, 16);
+    _request(requestId);
     if (_isHost) {
-      _accept(_participants.first, requestId, text);
+      _accept(_hostIdentity!, requestId, text);
     } else {
       final id = '$selfId:$requestId';
       if (_pending.containsKey(id)) {
@@ -371,13 +609,12 @@ class TcpMessageTransport extends ChangeNotifier implements MessageTransport {
       }
       final pending = Completer<void>();
       _pending[id] = pending;
-      // Attach the error handler before a synchronous socket failure is possible.
-      final acknowledged = pending.future.timeout(const Duration(seconds: 6));
+      final acknowledged = pending.future.timeout(confirmationTimeout);
       _write(_host!, {'type': 'send', 'id': requestId, 'text': text});
       try {
         await acknowledged;
       } finally {
-        _pending.remove(id);
+        if (identical(_pending[id], pending)) _pending.remove(id);
       }
     }
   }
@@ -385,10 +622,10 @@ class TcpMessageTransport extends ChangeNotifier implements MessageTransport {
   void _lost(Socket socket) {
     socket.destroy();
     if (_isHost) {
-      final peer = _peers.remove(socket);
-      if (peer != null) {
-        _participants.removeWhere((p) => p.id == peer.id);
-        _roster('${peer.displayName} left');
+      final identity = _peers.remove(socket);
+      if (identity != null) {
+        _participants.removeWhere((p) => p.id == identity.participant.id);
+        _roster('${identity.participant.displayName} left');
       }
     } else if (identical(socket, _host)) {
       _fail(
@@ -403,7 +640,24 @@ class TcpMessageTransport extends ChangeNotifier implements MessageTransport {
     _notify();
   }
 
-  void _stop() {
+  void _end(String message) {
+    sessionEnded = true;
+    _fail(message);
+  }
+
+  static void _drain(Socket socket) {
+    unawaited(
+      socket
+          .close()
+          .timeout(const Duration(seconds: 1))
+          .then<void>(
+            (_) => socket.destroy(),
+            onError: (Object _) => socket.destroy(),
+          ),
+    );
+  }
+
+  void _stop({bool graceful = false}) {
     _epoch++;
     _heartbeat?.cancel();
     _heartbeat = null;
@@ -412,7 +666,11 @@ class TcpMessageTransport extends ChangeNotifier implements MessageTransport {
     _host?.destroy();
     _host = null;
     for (final socket in _peers.keys) {
-      socket.destroy();
+      if (graceful) {
+        _drain(socket);
+      } else {
+        socket.destroy();
+      }
     }
     _peers.clear();
     _participants.clear();
@@ -425,9 +683,18 @@ class TcpMessageTransport extends ChangeNotifier implements MessageTransport {
     status = ChatStatus.offline;
   }
 
+  /// A client close suspends its session; a host close ends the group session.
   @override
   Future<void> close() async {
-    _stop();
+    if (_isHost && _groupId != null) {
+      _broadcast({
+        'type': 'ended',
+        'reason': 'The host ended this chat session.',
+      });
+      sessionEnded = true;
+      error = 'The host ended this chat session.';
+    }
+    _stop(graceful: _isHost);
     _notify();
   }
 

@@ -8,7 +8,7 @@ notes consistent with implemented behavior. Commit each milestone separately.
 Record the existing Android Wi-Fi Direct, QR/NFC invitation and TCP chat features;
 remove obsolete claims that chat is missing. iOS remains a capability stub.
 
-## 2. Reliable session recovery (next)
+## 2. Reliable session recovery (implemented; hardware validation outstanding)
 
 Goal: a temporary client interruption must not erase conversation history or
 duplicate a message whose host confirmation was lost.
@@ -30,6 +30,12 @@ Automated acceptance: three-party chat, interrupted client, messages while absen
 resume with the same identity, ordered replay without duplicates, lost confirmation
 and retry, bounded-history overflow, changed/ended host session, cancellation and
 draft preservation across navigation. Existing invitation/connection tests pass.
+
+Implemented in ChatSessionController and chat protocol v2. Automated tests include
+a TCP proxy that cuts the sender's connection after host acceptance, bounded
+replay/acceptance expiry, native snapshot recovery and stale-operation cancellation.
+Recovery is automatic on a restored native connection; TCP-only failures use
+Retry chat. Uncertain message sends require explicit Retry message.
 
 Hardware acceptance (outstanding): run wifi-direct-testing.md, chat-protocol.md and
 nfc-testing.md on two/three phones. Include range loss and return, mobile data
