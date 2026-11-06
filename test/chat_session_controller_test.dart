@@ -118,19 +118,28 @@ void main() {
     expect(transport.starts, 2);
   });
 
-  test('manual leave prevents automatic reconnect', () async {
-    session.updateConnection(connected, displayName: 'Alice');
-    await session.leave();
-    session.updateConnection(
-      const GroupConnectionState(),
-      displayName: 'Alice',
-    );
-    session.updateConnection(connected, displayName: 'Alice');
-    expect(transport.connects, 1);
-    expect(session.sessionEnded, isTrue);
-    session.startNewChat();
-    expect(transport.connects, 2);
-  });
+  test(
+    'manual leave pauses reconnect and explicit rejoin preserves the session',
+    () async {
+      session.updateConnection(connected, displayName: 'Alice');
+      session.draft = 'Keep after leaving';
+      await session.leave();
+      session.updateConnection(
+        const GroupConnectionState(),
+        displayName: 'Alice',
+      );
+      session.updateConnection(connected, displayName: 'Alice');
+      expect(transport.connects, 1);
+      expect(session.sessionEnded, isFalse);
+      session.retry();
+      expect(transport.connects, 1);
+      session.resumeJoining();
+      session.updateConnection(connected, displayName: 'Alice');
+      expect(transport.connects, 2);
+      expect(session.draft, 'Keep after leaving');
+      expect(transport.groupId, 'original');
+    },
+  );
 
   test(
     'late send failure cannot reappear after explicit session reset',

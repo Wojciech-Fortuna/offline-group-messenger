@@ -8,11 +8,12 @@ build/commit, joining method and outcome for each run.
 1. Install the same current build on two Android phones. Enter different names,
    create a group and join using QR, NFC or discovery. Keep the app foregrounded.
 2. Open chat and send both ways, including Unicode, emoji and multiline text.
-   Verify participants and Host confirmed labels. No Internet/mobile data is needed.
+   Verify participants and sent checkmarks (accepted by host, not read receipts).
+   No Internet/mobile data is needed.
 3. Add a third phone. New messages appear once on all phones with the right sender.
    A first-time participant does not receive history from before joining.
 4. Keep a draft, leave the chat screen and return. The draft/history must remain.
-5. Move a client out of range (do not tap Disconnect, which deliberately leaves).
+5. Move a client out of range, or deliberately Disconnect and rejoin later.
    Other phones continue sending. Native loss or the 35-second heartbeat timeout
    disables sending. Draft editing remains available.
 6. Return within range. If Wi-Fi Direct does not reconnect itself, rejoin the same
@@ -98,10 +99,11 @@ Message exchange:
 - Native client network restoration attempts resumption. TCP-only failure offers
   Retry chat. Uncertain outgoing sends require explicit retry and keep the original
   ID/text/session. Replay reconciles those already accepted by the host.
-- Manual Disconnect deliberately leaves. Creating a group or explicitly starting
-  a new chat clears old conversation state; joining after a deliberate leave also
-  starts fresh. Temporary client loss/rejoin preserves it. Host loss ends the host
-  session; changing roles does not migrate it.
+- Client Disconnect pauses reconnect attempts but retains history, draft and resume
+  credentials. Explicitly rejoining the same running group resumes it, just like
+  temporary network loss. Creating a group or explicitly starting a new chat clears
+  old conversation state. Host loss ends the host session; changing roles does not
+  migrate it. Process restart still loses all in-memory state.
 - Join/leave notices reflect locally observed rosters and are not replayed events.
 
 ## Security and platform limits

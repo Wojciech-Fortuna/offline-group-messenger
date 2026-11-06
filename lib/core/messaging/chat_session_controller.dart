@@ -33,6 +33,7 @@ class ChatSessionController extends ChangeNotifier {
   bool? _sessionRole;
   ChatMessage? _draftRequest;
   bool _left = false;
+  bool _roleChanged = false;
   bool _disposed = false;
   int _generation = 0;
   String draft = '';
@@ -42,7 +43,7 @@ class ChatSessionController extends ChangeNotifier {
   String? get selfId => transport.selfId;
   String? get error => transport.error;
   String? get historyWarning => transport.historyWarning;
-  bool get sessionEnded => _left || transport.sessionEnded;
+  bool get sessionEnded => _roleChanged || transport.sessionEnded;
   bool get hasConversation => transport.groupId != null || _history.isNotEmpty;
   bool get sending =>
       _outbox.values.any((e) => e.delivery == DeliveryState.pending);
@@ -104,10 +105,11 @@ class ChatSessionController extends ChangeNotifier {
     }
     if (key == null) {
       unawaited(transport.close());
-    } else if (!sessionEnded) {
+    } else if (!sessionEnded && !_left) {
       if (transport.groupId != null && _sessionRole != connection.isHost) {
         // A native role change does not migrate a conversation to a new host.
         _left = true;
+        _roleChanged = true;
         unawaited(transport.close());
       } else {
         _sessionRole = connection.isHost;
@@ -118,7 +120,10 @@ class ChatSessionController extends ChangeNotifier {
   }
 
   void retry() {
-    if (!networkConnected || sessionEnded || status == ChatStatus.connecting) {
+    if (!networkConnected ||
+        _left ||
+        sessionEnded ||
+        status == ChatStatus.connecting) {
       return;
     }
     if (_connection.isHost) {
@@ -149,6 +154,7 @@ class ChatSessionController extends ChangeNotifier {
     _draftRequest = null;
     sendError = null;
     _left = false;
+    _roleChanged = false;
     _connectionKey = null;
     _sessionRole = null;
     transport.resetSession();
@@ -167,6 +173,13 @@ class ChatSessionController extends ChangeNotifier {
   Future<void> leave() async {
     _left = true;
     await transport.close();
+    _changed();
+  }
+
+  /// User chose to rejoin. Preserve the session; the host validates its identity.
+  void resumeJoining() {
+    _left = false;
+    _connectionKey = null;
     _changed();
   }
 

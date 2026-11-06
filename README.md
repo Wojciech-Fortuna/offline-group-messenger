@@ -99,7 +99,8 @@ tap **Open chat**. The host's chat server starts automatically, even while its
 QR invitation is displayed. All participants should keep the app in the foreground.
 Use the people button to see participants; return to the connection screen to
 disconnect. If the chat connection fails, use **Retry chat** or rejoin the same
-group. Client history and drafts survive retries and navigating away from chat;
+group. Client history and drafts survive retries, deliberately leaving/rejoining
+the same live group, and navigating away from chat;
 returning clients resume their identity and receive retained missed messages.
 Unconfirmed sends stay visible with **Retry message** and keep their original ID.
 The app does not automatically resend uncertain messages. A changed/ended host

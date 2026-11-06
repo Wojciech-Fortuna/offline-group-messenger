@@ -63,7 +63,11 @@ void main() {
       await tester.tap(find.byTooltip('Send message'));
       await tester.pumpAndSettle();
       expect(find.text('Hello'), findsOneWidget);
-      expect(find.text('Host confirmed'), findsOneWidget);
+      expect(find.text('Host confirmed'), findsNothing);
+      expect(
+        find.byTooltip('Accepted by host; not a read receipt'),
+        findsOneWidget,
+      );
       expect(
         tester.widget<TextField>(find.byType(TextField)).controller!.text,
         isEmpty,
@@ -73,7 +77,7 @@ void main() {
       await tester.enterText(find.byType(TextField), 'Keep draft');
       await tester.tap(find.byTooltip('Send message'));
       await tester.pumpAndSettle();
-      expect(find.text('Failed / unconfirmed'), findsOneWidget);
+      expect(find.text('Not confirmed'), findsOneWidget);
       expect(
         tester.widget<TextField>(find.byType(TextField)).controller!.text,
         'Keep draft',
@@ -90,7 +94,10 @@ void main() {
       await tester.tap(find.text('Retry message'));
       await tester.pumpAndSettle();
       expect(transport.requests.last.id, request);
-      expect(find.text('Host confirmed'), findsNWidgets(2));
+      expect(
+        find.byTooltip('Accepted by host; not a read receipt'),
+        findsNWidgets(2),
+      );
       expect(
         tester.widget<TextField>(find.byType(TextField)).controller!.text,
         isEmpty,

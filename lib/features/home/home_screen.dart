@@ -199,7 +199,11 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
     if (confirm == true && mounted) {
-      if (_chat.sessionEnded) _chat.beginNewSession();
+      if (_chat.sessionEnded) {
+        _chat.beginNewSession();
+      } else {
+        _chat.resumeJoining();
+      }
       await _run(() => widget.connectivity.joinInvitation(invitation));
     }
   }
@@ -456,7 +460,11 @@ class _HomeScreenState extends State<HomeScreen> {
                       trailing: TextButton(
                         onPressed: canStart
                             ? () => _run(() async {
-                                if (_chat.sessionEnded) _chat.beginNewSession();
+                                if (_chat.sessionEnded) {
+                                  _chat.beginNewSession();
+                                } else {
+                                  _chat.resumeJoining();
+                                }
                                 await widget.connectivity.joinGroup(peer.id);
                               })
                             : null,

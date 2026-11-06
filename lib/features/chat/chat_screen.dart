@@ -182,14 +182,26 @@ class _ChatScreenState extends State<ChatScreen> {
                                       SelectableText(message.text),
                                       if (mine) ...[
                                         const SizedBox(height: 4),
-                                        Text(switch (entry.delivery) {
-                                          DeliveryState.pending =>
-                                            'Pending host confirmation',
-                                          DeliveryState.confirmed =>
-                                            'Host confirmed',
-                                          DeliveryState.failed =>
-                                            'Failed / unconfirmed',
-                                        }),
+                                        if (entry.delivery ==
+                                            DeliveryState.confirmed)
+                                          Tooltip(
+                                            message:
+                                                'Accepted by host; not a read receipt',
+                                            child: Icon(
+                                              Icons.check,
+                                              size: 14,
+                                              color: Theme.of(
+                                                context,
+                                              ).colorScheme.onSurfaceVariant,
+                                            ),
+                                          )
+                                        else
+                                          Text(
+                                            entry.delivery ==
+                                                    DeliveryState.pending
+                                                ? 'Sending…'
+                                                : 'Not confirmed',
+                                          ),
                                         if (entry.delivery ==
                                             DeliveryState.failed)
                                           TextButton(

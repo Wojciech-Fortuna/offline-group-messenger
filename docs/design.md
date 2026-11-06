@@ -16,7 +16,7 @@ the host confirms ending the group. A separate lobby is not implemented.
 
 Discovery appears on the home screen with searching, empty, denied and error
 states. Use text alongside color to explain connection status. Chat shows pending,
-host-confirmed and failed/unconfirmed message states. Host confirmation must
+confirmed (a small checkmark) and failed/unconfirmed message states. Host confirmation must
 not be labelled recipient delivery or a read receipt. See [roadmap.md](roadmap.md).
 
 ## Connection prototype
@@ -28,6 +28,8 @@ group. Permission failures and disabled Wi-Fi/Location have recovery messages.
 Users enter a display name before connecting. The host starts its TCP chat server
 automatically, and Open chat shows messages, participants and join/leave notices.
 The session controller retains drafts across navigation and keeps history on retry.
+Leaving as a participant retains the conversation; choosing to rejoin resumes the
+same live host session. Ending the host group still ends the session for everyone.
 Failed/unconfirmed sends have Retry message actions and retain their request IDs;
 the composer also reuses the ID when retrying the unchanged failed draft. A changed
 draft creates a separate message. Drafts can be edited while disconnected, but
