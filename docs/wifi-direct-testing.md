@@ -19,6 +19,10 @@ Flutter hot reload alone does not rebuild the native plugin.
 
 The list contains this app's public DNS-SD advertisements; generic Wi-Fi peers and
 private groups are excluded. The host may appear under its Android device name.
+Discovery must explicitly request the TXT record for
+`OfflineMessenger._ogm._tcp.local.`: the type-only DNS-SD request returns PTR
+service responses, while this app validates public/protocol markers in TXT data.
+See the [Android request API](https://developer.android.com/reference/android/net/wifi/p2p/nsd/WifiP2pDnsSdServiceRequest).
 Test Private creation separately with NFC using group-modes.md. After connecting, use Open chat
 and run the messaging checks in [chat-protocol.md](chat-protocol.md).
 
@@ -57,6 +61,12 @@ and camera performance still require verification on physical devices.
 - Revoke permission in settings, return, then retry with permission granted.
 - Stop/relaunch the app and inspect any surviving system group. Explicitly
   disconnect before leaving; process death cannot guarantee cleanup callbacks.
+- Install this build on both phones, create Public, and search without using QR
+  or NFC. Repeat with roles reversed. Private must remain absent from discovery.
+- An older app may list raw Wi-Fi devices and join the network without joining
+  the chat. All phones must run the current app. On detecting a different chat
+  protocol version, the updated app reports an update/rejoin instruction; the
+  incompatible connection must not add a chat participant or receive messages.
 
 ## Automated checks
 

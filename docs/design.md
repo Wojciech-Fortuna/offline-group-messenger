@@ -20,7 +20,8 @@ host-accepted (one check), received by at least one other client (two checks),
 received by all targeted recipients including the host (three checks), and failed/unconfirmed states.
 Tap checks for live per-recipient details. These are not read receipts. Targets
 are fixed at host acceptance. Two-phone conversations reach three checks in both
-directions; a host sending alone stays at one. Render each tick separately.
+directions; a host sending alone stays at one. Render three distinct, closely
+overlapping ticks while preserving the 48-pixel delivery-details touch target.
 See [delivery-receipts.md](delivery-receipts.md) and [roadmap.md](roadmap.md).
 
 ## Connection prototype
