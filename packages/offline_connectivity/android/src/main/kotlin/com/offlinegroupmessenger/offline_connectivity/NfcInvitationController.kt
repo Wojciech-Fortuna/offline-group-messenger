@@ -43,7 +43,7 @@ internal class NfcInvitationController(private val context: Context) {
         val current = activity
         when {
             current == null || !resumed -> result.error("nfc_inactive", "Keep the app open and both phones unlocked.", null)
-            !canRead || (host && !canShare) -> result.error("nfc_unsupported", "This phone does not support this NFC mode. Use QR instead.", null)
+            !canRead || (host && !canShare) -> result.error("nfc_unsupported", "This phone does not support this NFC mode. Private groups require NFC; public groups also support QR.", null)
             adapter?.isEnabled != true -> result.error("nfc_disabled", "Enable NFC in system settings, return here and retry.", null)
             else -> return current
         }
@@ -73,7 +73,7 @@ internal class NfcInvitationController(private val context: Context) {
                     result.success(null)
                 } catch (_: RuntimeException) {
                     stopSharing()
-                    result.error("nfc_unavailable", "Could not enable NFC sharing. Use QR or retry.", null)
+                    result.error("nfc_unavailable", "Could not enable NFC sharing. Check NFC settings and retry.", null)
                 }
             }
             override fun error(code: String, message: String?, details: Any?) = result.error(code, message, null)

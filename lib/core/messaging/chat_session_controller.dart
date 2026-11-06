@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:offline_connectivity/offline_connectivity.dart';
@@ -38,10 +39,11 @@ class ChatSessionController extends ChangeNotifier {
   int _generation = 0;
   String draft = '';
   String? sendError;
+  String? _configurationError;
 
   ChatStatus get status => transport.status;
   String? get selfId => transport.selfId;
-  String? get error => transport.error;
+  String? get error => _configurationError ?? transport.error;
   String? get historyWarning => transport.historyWarning;
   bool get sessionEnded => _roleChanged || transport.sessionEnded;
   bool get hasConversation => transport.groupId != null || _history.isNotEmpty;
@@ -127,6 +129,12 @@ class ChatSessionController extends ChangeNotifier {
       return;
     }
     if (_connection.isHost) {
+      if (_connection.privateGroup && transport.hostAdmissionToken == null) {
+        _configurationError =
+            'Private group credentials are unavailable. End this group and create it again.';
+        _changed();
+        return;
+      }
       // A host whose listener existed must start a new session explicitly.
       if (transport.groupId != null) return;
       unawaited(
@@ -153,12 +161,37 @@ class ChatSessionController extends ChangeNotifier {
     draft = '';
     _draftRequest = null;
     sendError = null;
+    _configurationError = null;
     _left = false;
     _roleChanged = false;
     _connectionKey = null;
     _sessionRole = null;
     transport.resetSession();
     _changed();
+  }
+
+  /// Called before creating the native group. Private admission stays out of discovery.
+  String? configureGroup({required bool privateGroup}) {
+    beginNewSession();
+    final random = Random.secure();
+    transport.hostAdmissionToken = privateGroup
+        ? List.generate(
+            32,
+            (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0'),
+          ).join()
+        : null;
+    transport.invitationToken = null;
+    return transport.hostAdmissionToken;
+  }
+
+  void prepareJoin({GroupInvitation? invitation}) {
+    if (sessionEnded) {
+      beginNewSession();
+    } else {
+      resumeJoining();
+    }
+    transport.invitationToken = invitation?.admissionToken;
+    transport.hostAdmissionToken = null;
   }
 
   void startNewChat() {

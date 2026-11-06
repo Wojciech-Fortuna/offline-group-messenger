@@ -32,6 +32,10 @@ class OfflineConnectivityPlugin : FlutterPlugin, ActivityAware,
     private var activityBinding: ActivityPluginBinding? = null
     private var manager: WifiP2pManager? = null
     private var channel: WifiP2pManager.Channel? = null
+    private var discovery: PublicGroupDiscovery? = null
+    // Fail closed for a system group surviving an app-process restart.
+    private var privateGroup = true
+    private var admissionToken: String? = null
     private val handler = Handler(Looper.getMainLooper())
     private var pending: MethodChannel.Result? = null
     private var afterPermission: (() -> Unit)? = null
@@ -59,6 +63,7 @@ class OfflineConnectivityPlugin : FlutterPlugin, ActivityAware,
                         WifiP2pManager.WIFI_P2P_STATE_ENABLED
                     if (!wifiEnabled) {
                         revision++
+                        discovery?.stopSearch()
                         peers = emptyList()
                         clearConnection("unavailable")
                         fail("wifi_disabled", "Enable Wi-Fi and try again.")
@@ -102,6 +107,14 @@ class OfflineConnectivityPlugin : FlutterPlugin, ActivityAware,
         events = EventChannel(binding.binaryMessenger, "com.offlinegroupmessenger/connectivity/events")
             .also { it.setStreamHandler(this) }
         manager = context.getSystemService(Context.WIFI_P2P_SERVICE) as? WifiP2pManager
+        discovery = manager?.let { mgr -> PublicGroupDiscovery(mgr, handler,
+            onPeers = { values -> peers = values; if (attached) sink?.success(snapshot()) },
+            onAdvertiseError = {
+                errorCode = "discovery_unavailable"
+                errorMessage = "Public discovery is unavailable. Recreate the group or share its QR/NFC invitation."
+                if (attached) sink?.success(snapshot())
+            }
+        ) }
         (context.applicationContext as Application).registerActivityLifecycleCallbacks(lifecycle)
         val filter = IntentFilter().apply {
             addAction(WifiP2pManager.WIFI_P2P_STATE_CHANGED_ACTION)
@@ -119,23 +132,26 @@ class OfflineConnectivityPlugin : FlutterPlugin, ActivityAware,
         if (channel == null && supported) {
             channel = manager?.initialize(context, Looper.getMainLooper()) {
                 if (attached) {
+                    discovery?.close()
                     channel = null
                     revision++
                     clearConnection("unavailable")
                     fail("channel_lost", "Wi-Fi Direct service disconnected. Try again.")
                 }
             }
+            channel?.let { discovery?.attach(it) }
         }
         return channel
     }
 
     private fun snapshot(): Map<String, Any?> = mapOf(
         "status" to status, "wifiEnabled" to wifiEnabled, "permissionGranted" to permitted(),
-        "isHost" to isHost, "hostAddress" to hostAddress, "peers" to peers,
+        "isHost" to isHost, "privateGroup" to privateGroup, "hostAddress" to hostAddress, "peers" to peers,
         "errorCode" to errorCode, "errorMessage" to errorMessage
     )
     private fun emit() {
         if (status != "connected" || !isHost) nfc.stopSharing()
+        discovery?.advertise(status == "connected" && isHost && !privateGroup && wifiEnabled && permitted())
         if (attached) sink?.success(snapshot())
     }
     private fun clearError() { errorCode = null; errorMessage = null }
@@ -188,20 +204,7 @@ class OfflineConnectivityPlugin : FlutterPlugin, ActivityAware,
         }
     }
     private fun readPeers() {
-        if (!permitted() || !attached) return
-        val ch = channel ?: return
-        val token = revision
-        guarded {
-            manager?.requestPeers(ch) { list ->
-                if (attached && token == revision) {
-                    peers = list.deviceList.map {
-                        mapOf("id" to it.deviceAddress, "name" to (it.deviceName ?: "Nearby device"),
-                            "isGroupOwner" to it.isGroupOwner)
-                    }.sortedBy { it["name"].toString() }
-                    emit()
-                }
-            }
-        }
+        // Generic Wi-Fi peers are intentionally excluded. DNS-SD supplies public groups.
     }
     private fun readConnection() {
         if (!attached || !permitted() || status == "disconnecting") return
@@ -237,7 +240,7 @@ class OfflineConnectivityPlugin : FlutterPlugin, ActivityAware,
             ))
             "getState" -> { refresh(); result.success(snapshot()) }
             "getInvitation" -> getInvitation(result)
-            "startNfcSharing" -> nfc.share(result, ::getInvitation)
+            "startNfcSharing" -> nfc.share(result) { getInvitation(it, viaNfc = true) }
             "stopNfc" -> { nfc.cancel(); result.success(null) }
             "readNfcInvitation" -> {
                 if (!supported || Build.VERSION.SDK_INT < 29) {
@@ -257,6 +260,18 @@ class OfflineConnectivityPlugin : FlutterPlugin, ActivityAware,
                     result.error("busy", "Disconnect from the current group first.", null); return
                 }
                 val peerId = (call.arguments as? Map<*, *>)?.get("peerId") as? String
+                val args = call.arguments as? Map<*, *>
+                if (call.method == "createGroup") {
+                    val isPrivate = args?.get("privateGroup") == true
+                    val secret = args?.get("admissionToken") as? String
+                    if (args?.get("privateGroup") !is Boolean ||
+                        (isPrivate && (secret == null || !secret.matches(Regex("[0-9a-f]{64}")) || !nfc.canShare)) ||
+                        (!isPrivate && secret != null)) {
+                        result.error("invalid_group", "Private groups require NFC sharing support and valid admission credentials.", null); return
+                    }
+                    privateGroup = isPrivate
+                    admissionToken = secret
+                }
                 if (call.method == "joinGroup" && peers.none { it["id"] == peerId }) {
                     result.error("invalid_peer", "Discover devices again and select a nearby device.", null); return
                 }
@@ -265,10 +280,14 @@ class OfflineConnectivityPlugin : FlutterPlugin, ActivityAware,
                     if (Build.VERSION.SDK_INT < 29) {
                         result.error("unsupported", "QR joining requires Android 10+. Use nearby-device discovery.", null); return
                     }
-                    val args = call.arguments as? Map<*, *>
                     val name = args?.get("networkName") as? String
                     val password = args?.get("passphrase") as? String
-                    if (args?.get("app") != "offline-group-messenger" || args["version"] != 1 ||
+                    val isPrivate = args?.get("privateGroup") == true
+                    val secret = args?.get("admissionToken") as? String
+                    if (args?.get("app") != "offline-group-messenger" || args["version"] != (if (isPrivate) 2 else 1) ||
+                        (args["privateGroup"] != null && args["privateGroup"] !is Boolean) ||
+                        (isPrivate && (args["version"] != 2 || secret == null || !secret.matches(Regex("[0-9a-f]{64}")))) ||
+                        (!isPrivate && secret != null) ||
                         args["transport"] != "wifi-direct" || name == null || password == null ||
                         !name.matches(Regex("DIRECT-[a-zA-Z0-9]{2}.*")) ||
                         name.toByteArray(Charsets.UTF_8).size > 32 || name.any { it.code < 32 || it.code == 127 } ||
@@ -278,10 +297,13 @@ class OfflineConnectivityPlugin : FlutterPlugin, ActivityAware,
                     try {
                         invitationConfig = WifiP2pConfig.Builder()
                             .setNetworkName(name).setPassphrase(password).build()
+                        privateGroup = isPrivate
+                        admissionToken = null // Joining credentials stay in the Dart session, not broadcasts.
                     } catch (_: IllegalArgumentException) {
                         result.error("invalid_invitation", "Invalid group credentials.", null); return
                     }
                 }
+                if (call.method == "joinGroup") { privateGroup = false; admissionToken = null }
                 pending = result
                 clearError()
                 val run = { execute(call.method, peerId, invitationConfig) }
@@ -316,6 +338,7 @@ class OfflineConnectivityPlugin : FlutterPlugin, ActivityAware,
             if (!enabled) { fail("location_disabled", "Enable Location in system settings for nearby-device discovery."); return }
         }
         val token = ++revision
+        if (method != "discoverPeers") discovery?.stopSearch()
         operationTimeout = Runnable {
             if (token == revision && pending != null) {
                 revision++ // Ignore late callbacks belonging to this timed-out request.
@@ -343,7 +366,7 @@ class OfflineConnectivityPlugin : FlutterPlugin, ActivityAware,
             }
             "discoverPeers" -> {
                 peers = emptyList(); status = "discovering"; emit()
-                mgr.discoverPeers(ch, listener)
+                discovery?.search(listener) ?: listener.onFailure(WifiP2pManager.ERROR)
             }
             "joinGroup" -> {
                 clearConnection("connecting"); emit()
@@ -403,8 +426,11 @@ class OfflineConnectivityPlugin : FlutterPlugin, ActivityAware,
         }
     }
 
-    private fun getInvitation(result: MethodChannel.Result) {
+    private fun getInvitation(result: MethodChannel.Result, viaNfc: Boolean = false) {
         if (pending != null) { result.error("busy", "Another request is in progress.", null); return }
+        if (privateGroup && (!viaNfc || admissionToken == null)) {
+            result.error("private_group", "Private groups use NFC invitations only. Recreate the group if its credentials were lost.", null); return
+        }
         if (status != "connected" || !isHost || !permitted()) {
             result.error("not_host", "Create a group before sharing its invitation.", null); return
         }
@@ -429,11 +455,16 @@ class OfflineConnectivityPlugin : FlutterPlugin, ActivityAware,
                     fail("not_host", "The host group is no longer available. Create a group and retry.")
                 } else {
                     // Credentials are returned only on explicit request, never in state events or logs.
-                    finish(mapOf(
-                        "app" to "offline-group-messenger", "version" to 1,
+                    val payload = mutableMapOf<String, Any>(
+                        "app" to "offline-group-messenger", "version" to if (privateGroup) 2 else 1,
                         "transport" to "wifi-direct",
                         "networkName" to group.networkName, "passphrase" to group.passphrase
-                    ))
+                    )
+                    if (privateGroup) {
+                        payload["privateGroup"] = true
+                        payload["admissionToken"] = requireNotNull(admissionToken)
+                    }
+                    finish(payload)
                 }
             }
         }
@@ -491,6 +522,7 @@ class OfflineConnectivityPlugin : FlutterPlugin, ActivityAware,
         detachActivity()
         fail("detached", "Connection adapter closed.")
         attached = false
+        discovery?.close()
         nfc.dispose()
         handler.removeCallbacksAndMessages(null)
         // Best effort cleanup; explicit disconnect is the reliable user-visible path.

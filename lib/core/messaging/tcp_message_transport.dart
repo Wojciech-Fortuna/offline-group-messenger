@@ -49,6 +49,11 @@ class TcpMessageTransport extends ChangeNotifier implements MessageTransport {
   bool _welcomed = false;
   bool _hasRoster = false;
   String displayName = 'Guest';
+
+  /// Out-of-band group admission, carried only in NFC invitations for private groups.
+  /// These bearer secrets are not encryption or authenticated identities.
+  String? hostAdmissionToken;
+  String? invitationToken;
   String? selfId;
   String? _groupId;
   String? _resumeToken;
@@ -176,6 +181,8 @@ class TcpMessageTransport extends ChangeNotifier implements MessageTransport {
           'after': _sequence,
           if (_resumeToken != null) 'token': _resumeToken,
           if (_groupId != null) 'groupId': _groupId,
+          if (_resumeToken == null && invitationToken != null)
+            'admissionToken': invitationToken,
         });
         _startHeartbeat();
         Future<void>.delayed(const Duration(seconds: 5), () {
@@ -405,6 +412,15 @@ class TcpMessageTransport extends ChangeNotifier implements MessageTransport {
     final name = _string(frame['name'], 32);
     final after = _number(frame['after']);
     final resume = frame['token'] != null || frame['groupId'] != null;
+    if (!resume &&
+        hostAdmissionToken != null &&
+        frame['admissionToken'] != hostAdmissionToken) {
+      _rejectSession(
+        socket,
+        'This private group requires an NFC invitation. Tap the host to join.',
+      );
+      return;
+    }
     String token;
     _Identity identity;
     if (resume) {

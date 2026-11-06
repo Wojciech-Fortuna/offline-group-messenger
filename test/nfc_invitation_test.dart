@@ -142,7 +142,9 @@ void main() {
     expect(find.text('Retry NFC'), findsOneWidget);
   });
 
-  testWidgets('disabled NFC shows recovery and QR fallback', (tester) async {
+  testWidgets('disabled NFC shows recovery and public-group QR fallback', (
+    tester,
+  ) async {
     final connection = NfcConnection()..disabled = true;
     addTearDown(connection.updates.close);
     await tester.pumpWidget(
@@ -153,7 +155,10 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Enable NFC in settings.'), findsOneWidget);
     expect(find.text('Retry NFC'), findsOneWidget);
-    expect(find.textContaining('use QR instead'), findsOneWidget);
+    expect(
+      find.textContaining('Public groups also support QR'),
+      findsOneWidget,
+    );
     expect(connection.qrJoins, 0);
   });
 }

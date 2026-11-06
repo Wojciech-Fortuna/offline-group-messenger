@@ -20,6 +20,13 @@ class _ScanInvitationScreenState extends State<ScanInvitationScreen> {
       }
       try {
         final invitation = GroupInvitation.parse(barcode.rawValue!);
+        if (invitation.privateGroup) {
+          setState(
+            () => _error =
+                'Private groups require an NFC tap. QR invitations are for public groups.',
+          );
+          return;
+        }
         _handled = true;
         Navigator.of(context).pop(invitation);
         return;

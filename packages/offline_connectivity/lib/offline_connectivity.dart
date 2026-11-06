@@ -23,7 +23,13 @@ class OfflineConnectivity {
   Stream<GroupConnectionState> get states => _states;
 
   /// Completion means accepted by Android, not an established connection.
-  Future<void> createGroup() => _channel.invokeMethod<void>('createGroup');
+  Future<void> createGroup({
+    bool privateGroup = false,
+    String? admissionToken,
+  }) => _channel.invokeMethod<void>('createGroup', {
+    'privateGroup': privateGroup,
+    if (admissionToken != null) 'admissionToken': admissionToken,
+  });
   Future<void> discoverPeers() => _channel.invokeMethod<void>('discoverPeers');
   Future<void> joinGroup(String peerId) =>
       _channel.invokeMethod<void>('joinGroup', {'peerId': peerId});

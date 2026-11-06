@@ -36,6 +36,7 @@ class GroupConnectionState {
     this.wifiEnabled = false,
     this.permissionGranted = false,
     this.isHost = false,
+    this.privateGroup = false,
     this.hostAddress,
     this.peers = const [],
     this.errorCode,
@@ -45,6 +46,7 @@ class GroupConnectionState {
   final bool wifiEnabled;
   final bool permissionGranted;
   final bool isHost;
+  final bool privateGroup;
   final String? hostAddress;
   final List<NearbyPeer> peers;
   final String? errorCode;
@@ -55,6 +57,7 @@ class GroupConnectionState {
         map['wifiEnabled'] is! bool ||
         map['permissionGranted'] is! bool ||
         map['isHost'] is! bool ||
+        (map['privateGroup'] != null && map['privateGroup'] is! bool) ||
         map['peers'] is! List ||
         (map['hostAddress'] != null && map['hostAddress'] is! String) ||
         (map['errorCode'] != null && map['errorCode'] is! String) ||
@@ -72,6 +75,7 @@ class GroupConnectionState {
       wifiEnabled: map['wifiEnabled'] as bool,
       permissionGranted: map['permissionGranted'] as bool,
       isHost: map['isHost'] as bool,
+      privateGroup: map['privateGroup'] == true,
       hostAddress: address,
       peers: List.unmodifiable(
         (map['peers'] as List).map(

@@ -19,6 +19,34 @@ void main() {
     expect(GroupInvitation.parse(invitation.encode()).toMap(), map);
   });
   test(
+    'private NFC invitation round trips and requires a 256-bit admission token',
+    () {
+      final map = validInvitation()
+        ..addAll({
+          'version': 2,
+          'privateGroup': true,
+          'admissionToken': 'a' * 64,
+        });
+      final value = GroupInvitation.parse(jsonEncode(map));
+      expect(value.privateGroup, isTrue);
+      expect(value.toMap(), map);
+      for (final token in [null, 'short', 'z' * 64, 123]) {
+        expect(
+          () => GroupInvitation.fromMap({...map, 'admissionToken': token}),
+          throwsFormatException,
+        );
+      }
+      expect(
+        () => GroupInvitation.fromMap({...map, 'version': 1}),
+        throwsFormatException,
+      );
+      expect(
+        () => GroupInvitation.fromMap({...map, 'privateGroup': false}),
+        throwsFormatException,
+      );
+    },
+  );
+  test(
     'rejects other QR formats, versions, invalid credentials and large input',
     () {
       for (final raw in [

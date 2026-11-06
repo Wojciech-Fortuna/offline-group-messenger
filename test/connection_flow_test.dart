@@ -11,6 +11,8 @@ class FakeConnection extends OfflineConnectivity {
   int disconnects = 0;
   String? joined;
   bool denied = false;
+  bool? createdPrivate;
+  String? createdToken;
   @override
   Future<ConnectionCapabilities> getCapabilities() async =>
       const ConnectionCapabilities(
@@ -22,8 +24,13 @@ class FakeConnection extends OfflineConnectivity {
   @override
   Stream<GroupConnectionState> get states => updates.stream;
   @override
-  Future<void> createGroup() async {
+  Future<void> createGroup({
+    bool privateGroup = false,
+    String? admissionToken,
+  }) async {
     creates++;
+    createdPrivate = privateGroup;
+    createdToken = admissionToken;
     if (denied) {
       throw PlatformException(
         code: 'permission_denied',
@@ -60,6 +67,11 @@ void main() {
       addTearDown(connection.updates.close);
       await tester.pumpWidget(MessengerApp(connectivity: connection));
       await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.text('Create a group'),
+        150,
+        scrollable: find.byType(Scrollable).first,
+      );
       await tester.tap(find.text('Create a group'));
       await tester.pumpAndSettle();
       expect(connection.creates, 1);
@@ -131,8 +143,18 @@ void main() {
     addTearDown(connection.updates.close);
     await tester.pumpWidget(MessengerApp(connectivity: connection));
     await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('Create a group'),
+      150,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.tap(find.text('Create a group'));
     await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('Permission denied.'),
+      -150,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.text('Permission denied.'), findsOneWidget);
     await tester.scrollUntilVisible(
       find.byType(FilledButton),

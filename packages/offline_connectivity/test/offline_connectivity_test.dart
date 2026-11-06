@@ -67,6 +67,22 @@ void main() {
       'disconnect',
     ]);
     expect(calls[2].arguments, {'peerId': '02:11:22:33:44:55'});
+    expect(calls.first.arguments, {'privateGroup': false});
+  });
+
+  test('private creation passes admission credentials explicitly', () async {
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      expect(call.method, 'createGroup');
+      expect(call.arguments, {
+        'privateGroup': true,
+        'admissionToken': 'b' * 64,
+      });
+      return null;
+    });
+    await const OfflineConnectivity().createGroup(
+      privateGroup: true,
+      admissionToken: 'b' * 64,
+    );
   });
 
   test('connection snapshot preserves actual host address and role', () async {

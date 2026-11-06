@@ -10,9 +10,11 @@ class NfcInvitationScreen extends StatefulWidget {
     super.key,
     required this.connectivity,
     required this.sharing,
+    this.privateGroup = false,
   });
   final OfflineConnectivity connectivity;
   final bool sharing;
+  final bool privateGroup;
 
   @override
   State<NfcInvitationScreen> createState() => _NfcInvitationScreenState();
@@ -83,7 +85,7 @@ class _NfcInvitationScreenState extends State<NfcInvitationScreen>
         setState(() {
           _starting = false;
           _active = false;
-          _error = error.message ?? 'NFC is unavailable. Use QR instead.';
+          _error = error.message ?? 'NFC is unavailable. Enable it and retry.';
         });
       }
     } catch (_) {
@@ -91,7 +93,7 @@ class _NfcInvitationScreenState extends State<NfcInvitationScreen>
         setState(() {
           _starting = false;
           _active = false;
-          _error = 'Not a supported NFC invitation. Retry or use QR.';
+          _error = 'Not a supported NFC invitation. Retry the tap.';
         });
       }
     }
@@ -204,8 +206,10 @@ class _NfcInvitationScreenState extends State<NfcInvitationScreen>
               child: const Text('Stop and go back'),
             ),
             const SizedBox(height: 12),
-            const Text(
-              'NFC disabled? Enable it in system settings, return here and retry. You can also go back and use QR instead.',
+            Text(
+              widget.privateGroup
+                  ? 'Private groups use NFC invitations only. Enable NFC in settings, return here and retry.'
+                  : 'NFC disabled? Enable it in system settings, return here and retry. Public groups also support QR.',
             ),
           ],
         ),
