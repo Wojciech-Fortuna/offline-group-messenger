@@ -17,9 +17,10 @@ the host confirms ending the group. A separate lobby is not implemented.
 Discovery appears on the home screen with searching, empty, denied and error
 states. Use text alongside color to explain connection status. Chat shows pending,
 host-accepted (one check), received by at least one other client (two checks),
-received by all targeted clients (three checks), and failed/unconfirmed states.
+received by all targeted recipients including the host (three checks), and failed/unconfirmed states.
 Tap checks for live per-recipient details. These are not read receipts. Targets
-are fixed at host acceptance; no other clients means one check only.
+are fixed at host acceptance. Two-phone conversations reach three checks in both
+directions; a host sending alone stays at one. Render each tick separately.
 See [delivery-receipts.md](delivery-receipts.md) and [roadmap.md](roadmap.md).
 
 ## Connection prototype

@@ -171,6 +171,7 @@ void main() {
       await alice.send(request);
       expect(texts(alice).length, 1);
       expect(alice.deliveryFor(message.id)!.recipients.map((p) => p.id), [
+        host.selfId,
         bob.id,
         carol.id,
       ]);
@@ -255,14 +256,25 @@ void main() {
   );
 
   test(
-    'no forwarded recipients stays at one; reset and retention bound receipts',
+    'two phones reach three in both directions; host alone stays at one; retention is bounded',
     () async {
       final alice = await client();
       await alice.sendText('Only host');
       final message = texts(host).single;
       await until(() => alice.deliveryFor(message.id) != null);
-      expect(alice.deliveryFor(message.id)!.checks, 1);
-      expect(alice.deliveryFor(message.id)!.recipients, isEmpty);
+      expect(alice.deliveryFor(message.id)!.checks, 3);
+      expect(alice.deliveryFor(message.id)!.recipients.map((p) => p.id), [
+        host.selfId,
+      ]);
+      expect(alice.deliveryFor(message.id)!.received, {host.selfId});
+      await host.sendText('Reply to sole guest');
+      final reply = texts(host).last;
+      await until(() => host.deliveryFor(reply.id)!.checks == 3);
+      expect(host.deliveryFor(reply.id)!.recipients.map((p) => p.id), [
+        alice.selfId,
+      ]);
+      expect(host.deliveryFor(reply.id)!.received, {alice.selfId});
+      expect(texts(alice).last.id, reply.id);
       alice.resetSession();
       expect(alice.deliveryFor(message.id), isNull);
       await until(() => host.participants.length == 1);

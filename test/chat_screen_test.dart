@@ -90,8 +90,7 @@ void main() {
       find.byTooltip('Someone else received it; not a read receipt'),
       findsOneWidget,
     );
-    expect(find.byIcon(Icons.done_all), findsOneWidget);
-    expect(find.byIcon(Icons.check), findsNothing);
+    expect(find.byIcon(Icons.check), findsNWidgets(2));
     await tester.tap(
       find.byTooltip('Someone else received it; not a read receipt'),
     );
@@ -110,8 +109,7 @@ void main() {
       find.byTooltip('Everyone received it; not a read receipt'),
       findsOneWidget,
     );
-    expect(find.byIcon(Icons.check), findsOneWidget);
-    expect(find.byIcon(Icons.done_all), findsOneWidget);
+    expect(find.byIcon(Icons.check), findsNWidgets(3));
   });
 
   testWidgets(

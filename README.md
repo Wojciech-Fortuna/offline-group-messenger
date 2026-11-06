@@ -121,9 +121,10 @@ missed history has expired. First-time participants do not receive old history.
 Starting a new chat or restarting the process clears local conversation state.
 Host confirmation means the host accepted a message, not that every participant
 received or read it. One check means host acceptance; two mean at least one other
-client received it; three mean every targeted client received it. Tap checks for
-delivery details. Targets are the other clients connected at host acceptance;
-with none, the message stays at one check. These are not read receipts.
+client received it; three mean every targeted recipient received it. Tap checks for
+delivery details. Targets are the other participants connected at host acceptance,
+including the host. With two phones, both senders reach three when the other phone
+receives the message. A host sending alone stays at one. These are not read receipts.
 See [delivery receipts](docs/delivery-receipts.md). Storage is not durable.
 
 Session recovery is implemented and covered by automated tests. Run the

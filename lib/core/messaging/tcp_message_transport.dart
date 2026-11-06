@@ -436,6 +436,9 @@ class TcpMessageTransport extends ChangeNotifier implements MessageTransport {
         final id = _string(frame['id'], 130);
         final sequence = _number(frame['sequence']);
         final list = frame['recipients'];
+        final hostId = frame['hostId'] == null
+            ? null
+            : _string(frame['hostId'], 64);
         if (!id.startsWith('$selfId:') ||
             sequence == 0 ||
             sequence > _sequence ||
@@ -466,6 +469,7 @@ class TcpMessageTransport extends ChangeNotifier implements MessageTransport {
         final previous = _delivery[id];
         if (previous != null &&
             (previous.sequence != sequence ||
+                previous.hostId != hostId ||
                 !setEquals(
                   previous.recipients.map((p) => p.id).toSet(),
                   recipients.map((p) => p.id).toSet(),
@@ -477,6 +481,7 @@ class TcpMessageTransport extends ChangeNotifier implements MessageTransport {
         }
         _delivery[id] = MessageDelivery(
           sequence: sequence,
+          hostId: hostId,
           recipients: recipients,
           received: received,
         );
@@ -626,9 +631,9 @@ class TcpMessageTransport extends ChangeNotifier implements MessageTransport {
     _accepted[id] = message;
     _delivery[id] = MessageDelivery(
       sequence: message.sequence,
-      recipients: _participants
-          .where((p) => p.id != selfId && p.id != sender.id)
-          .toList(),
+      hostId: selfId,
+      recipients: _participants.where((p) => p.id != sender.id).toList(),
+      received: sender.id == selfId ? {} : {selfId!},
     );
     if (_accepted.length > acceptanceLimit) {
       final expired = _accepted.keys.first;
@@ -648,6 +653,7 @@ class TcpMessageTransport extends ChangeNotifier implements MessageTransport {
       'type': 'delivery',
       'id': id,
       'sequence': delivery.sequence,
+      'hostId': delivery.hostId,
       'recipients': [
         for (final p in delivery.recipients)
           {

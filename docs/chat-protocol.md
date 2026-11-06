@@ -10,7 +10,7 @@ build/commit, joining method and outcome for each run.
    with a Private group using NFC only. Keep the app foregrounded.
 2. Open chat and send both ways, including Unicode, emoji and multiline text.
    Verify participants and sent checkmarks: one for host acceptance, two for at
-   least one other client receipt, three for all targeted client receipts.
+   least one other client receipt, three for all targeted recipients including the host.
    Tap checks for per-recipient details. These are not read receipts.
    No Internet/mobile data is needed.
 3. Add a third phone. New messages appear once on all phones with the right sender.
@@ -98,8 +98,10 @@ Message exchange:
 
 Recipient acknowledgements (`received`) and sender snapshots (`delivery`) are
 specified in [delivery-receipts.md](delivery-receipts.md). They are independent of
-host acceptance and replay cursors. Connected client targets are fixed when a
-message is accepted, excluding its sender; host receipt is the first check.
+host acceptance and replay cursors. Connected participant targets are fixed when a
+message is accepted, excluding its sender and including the host when it receives
+a guest message. Host acceptance confirms that recipient immediately. In a
+two-phone group both senders reach three checks when the other phone receives it.
 
 - At most 15 client sockets plus the host; silent handshakes expire in 5 seconds.
 - At most 128 issued resume identities per host session, including disconnected

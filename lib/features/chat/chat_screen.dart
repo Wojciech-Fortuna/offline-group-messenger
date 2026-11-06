@@ -97,7 +97,11 @@ class _ChatScreenState extends State<ChatScreen> {
                   ),
                 for (final p in delivery.recipients)
                   ListTile(
-                    title: Text(p.displayName),
+                    title: Text(
+                      p.id == delivery.hostId
+                          ? '${p.displayName} (host)'
+                          : p.displayName,
+                    ),
                     subtitle: Text(
                       delivery.received.contains(p.id)
                           ? 'Received'
@@ -119,15 +123,24 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Widget _deliveryChecks(String id) {
     final checks = widget.chat.deliveryFor(id)?.checks ?? 1;
-    return IconButton(
-      tooltip: _deliveryLabel(id),
-      onPressed: () => _showDelivery(id),
-      icon: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (checks == 3) const Icon(Icons.check, size: 14),
-          Icon(checks >= 2 ? Icons.done_all : Icons.check, size: 14),
-        ],
+    return Tooltip(
+      message: _deliveryLabel(id),
+      child: TextButton(
+        onPressed: () => _showDelivery(id),
+        style: TextButton.styleFrom(
+          minimumSize: const Size(48, 48),
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (var i = 0; i < checks; i++)
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 1),
+                child: Icon(Icons.check, size: 14),
+              ),
+          ],
+        ),
       ),
     );
   }
