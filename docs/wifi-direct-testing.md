@@ -7,9 +7,9 @@ Flutter hot reload alone does not rebuild the native plugin.
 
 1. Install the new debug build on two physical Android phones. Enable Wi-Fi and
    Location on both. Internet/mobile data are not required.
-2. On phone A, select Create a group. Grant Nearby devices on Android 13+, or
+2. On phone A, select Public and Create a group. Grant Nearby devices on Android 13+, or
    precise Location on older Android. Wait for Connected / You are the host.
-3. On phone B, select Find nearby devices and grant permissions. Select Join
+3. On phone B, select Find public groups and grant permissions. Select Join
    beside phone A. Accept Android's system invitation on either phone if shown.
 4. Wait for Connected / Participant on B. Both phones must report the same host
    IP. Record the actual value; do not assume a particular address.
@@ -17,13 +17,14 @@ Flutter hot reload alone does not rebuild the native plugin.
    its group. Join again, then end the group on A and confirm B loses connection.
 6. Repeat with host/client roles reversed, then add a third phone if available.
 
-The current list contains generic Wi-Fi Direct peers, not only this app.
-The host may appear under its Android device name. After connecting, use Open chat
+The list contains this app's public DNS-SD advertisements; generic Wi-Fi peers and
+private groups are excluded. The host may appear under its Android device name.
+Test Private creation separately with NFC using group-modes.md. After connecting, use Open chat
 and run the messaging checks in [chat-protocol.md](chat-protocol.md).
 
 ## QR invitations
 
-1. Create a group on phone A and wait until it reports that it is the host.
+1. Create a Public group on phone A and wait until it reports that it is the host.
 2. Tap Show group QR code.
 3. On phone B (Android 10+), tap Scan group QR code and allow camera access.
 4. Scan A's code, confirm the displayed group name, and grant Nearby devices /

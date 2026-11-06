@@ -10,11 +10,11 @@ Codec: Flutter StandardMethodCodec.
 | --- | --- | --- |
 | getCapabilities | none | platform, wifiDirectSupported, implementationReady, description |
 | getState | none | Cached snapshot; also schedules a system refresh emitted as events |
-| createGroup | none | null when Android accepts group creation |
-| discoverPeers | none | null when Android accepts discovery |
+| createGroup | {privateGroup: bool, admissionToken?: string} | null when Android accepts group creation; private mode requires NFC HCE and a 64-character lowercase hex token |
+| discoverPeers | none | null when Android accepts DNS-SD discovery of public messenger groups |
 | joinGroup | {peerId: string} | null when Android accepts connection to a discovered peer |
 | disconnect | none | null after discovery/negotiation cleanup and group removal |
-| getInvitation | none | Versioned invitation for the current connected host group |
+| getInvitation | none | Public host QR invitation; private hosts return private_group |
 | joinInvitation | invitation map | null when Android accepts credential-based joining (API 29+) |
 | startNfcSharing | none | null after current host credentials are fetched and HCE sharing enabled for up to 60 seconds |
 | readNfcInvitation | none | Invitation JSON string after one successful ISO-DEP read; does not join |
@@ -41,6 +41,10 @@ unsupported versions, malformed SSIDs/passwords and codes over 2048 characters.
 SSID must follow DIRECT-xy naming and fit 32 UTF-8 bytes; the passphrase is
 8–63 printable ASCII characters. Both Dart and native Android validate inputs.
 Additional errors are not_host and invalid_invitation.
+Private NFC uses version=2 with privateGroup=true and a 64-character lowercase hex
+admissionToken. Public payloads must not contain admissionToken. Native NFC sharing
+retrieves this privately; getInvitation never exposes it for QR. The QR scanner
+rejects private payloads. Credentials never appear in snapshots or DNS-SD records.
 There is no expiry or one-time-use guarantee: this shares network credentials,
 not a cryptographically authenticated messaging invitation.
 The NFC sharing window expires, but credentials already read remain valid for
@@ -71,20 +75,25 @@ sink, not the Wi-Fi group; use disconnect to leave.
 | wifiEnabled | bool | Current Wi-Fi/P2P availability |
 | permissionGranted | bool | Required runtime permission is granted |
 | isHost | bool | Android reports this device as group owner |
+| privateGroup | bool | Current native group/join mode; missing values default to false in Dart |
 | hostAddress | string or null | Actual WifiP2pInfo.groupOwnerAddress; cleared on disconnect |
-| peers | list | Each item has id, name (strings) and isGroupOwner (bool) |
+| peers | list | Public messenger DNS-SD matches only; each has id, name (strings) and isGroupOwner (bool) |
 | errorCode | string or null | Last failure identifier |
 | errorMessage | string or null | Recovery message suitable for display |
 
 Connected state requires a host address. Discovery may end with no results.
 Peer IDs are Android-provided addresses for this discovery session; do not persist
 them as participant identities. Peer names do not authenticate an app or user.
+Public discovery uses OfflineMessenger._ogm._tcp.local TXT records with app,
+v=2 and mode=public. Private hosts register no service. Entries expire after 60
+seconds without a response. Android-level Wi-Fi visibility is not suppressed.
 
 ## Errors and cleanup
 
 PlatformException codes include unsupported, busy, permission_denied,
 wifi_disabled, location_disabled, invalid_peer, no_activity, activity_detached,
 unavailable, channel_lost, connection_failed, timeout and detached.
+Group modes add invalid_group, private_group and discovery_unavailable.
 Asynchronous connection expiry emits connection_timeout in a snapshot.
 A 15-second operation timeout bounds Android callbacks after permission approval;
 group formation has a separate roughly 60-second window. Permissions are never

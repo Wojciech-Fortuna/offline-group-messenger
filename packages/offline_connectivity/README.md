@@ -3,7 +3,10 @@
 Private Flutter plugin used by the app in this repository. Kotlin implements
 Wi-Fi Direct permissions, create/discover/join/disconnect, state events, and
 foreground NFC invitation sharing (HCE) / reading (ISO-DEP). NFC is optional;
-devices without it can still use QR or nearby discovery.
+devices without it can still use QR or nearby discovery for public groups.
+Private groups use NFC only and are not advertised through the app's DNS-SD
+discovery. Public discovery filters out generic Wi-Fi peers. Network and admission
+credentials are never included in discovery records or state events.
 Swift supplies an unsupported stub for future iOS connectivity. Messaging is
 implemented separately in the app's shared Dart TCP layer.
 

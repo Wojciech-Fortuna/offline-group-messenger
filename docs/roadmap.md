@@ -44,6 +44,12 @@ Automated loopback tests do not establish physical-radio interoperability.
 
 ## 3. Authenticated encryption
 
+Preceding usability/admission milestone (implemented): deliberate participant
+leave/rejoin now retains history; successful sends use a small checkmark instead
+of repeated Host confirmed text. Public groups advertise through app-specific
+DNS-SD; private groups use NFC-only admission with no QR fallback or public
+advertisement. See group-modes.md. These changes do not implement encryption.
+
 Define participant admission, host trust, invitation authentication and key
 lifecycle before selecting/implementing a reviewed protocol. Wi-Fi passwords,
 display names and resume tokens alone do not provide authenticated encryption.
@@ -53,10 +59,11 @@ display names and resume tokens alone do not provide authenticated encryption.
 Persist identity, history and outgoing state with an explicit retention/deletion
 policy and storage-security design. Verify process restart and crash recovery.
 
-## 5. Background operation and discovery
+## 5. Background operation
 
-Implement and validate Android lifecycle/notification behavior. Add app-specific
-discovery so generic Wi-Fi peers are not presented as compatible messengers.
+Implement and validate Android lifecycle/notification behavior. Public service
+discovery is implemented; verify it across physical phone models and refine
+recovery based on observed OEM behavior.
 
 ## Later / feasibility tracks
 

@@ -6,7 +6,8 @@ Hardware validation remains outstanding. Record phone model, Android version,
 build/commit, joining method and outcome for each run.
 
 1. Install the same current build on two Android phones. Enter different names,
-   create a group and join using QR, NFC or discovery. Keep the app foregrounded.
+   create a Public group and join using QR, NFC or public discovery. Also repeat
+   with a Private group using NFC only. Keep the app foregrounded.
 2. Open chat and send both ways, including Unicode, emoji and multiline text.
    Verify participants and sent checkmarks (accepted by host, not read receipts).
    No Internet/mobile data is needed.
@@ -17,7 +18,7 @@ build/commit, joining method and outcome for each run.
    Other phones continue sending. Native loss or the 35-second heartbeat timeout
    disables sending. Draft editing remains available.
 6. Return within range. If Wi-Fi Direct does not reconnect itself, rejoin the same
-   host using discovery/QR/NFC. A restored connected snapshot resumes chat; if only
+   host using NFC (private) or discovery/QR/NFC (public). A restored connected snapshot resumes chat; if only
    the TCP connection failed while Wi-Fi stayed connected, use Retry chat.
 7. Verify the returning participant keeps its identity, retains previous messages,
    receives missed messages in order, and can send again. There must be no duplicate
@@ -47,13 +48,18 @@ TCP port **45871**. The host binds only to the actual group-owner IP supplied by
 Android. Frames are UTF-8 JSON objects followed by LF, with `v: 2`. Embedded
 newlines are JSON-escaped. Frames above 32 KiB and malformed/unsupported frames
 close the offending socket. Split/coalesced reads are supported. Protocol v1 peers
-must be updated; there is no silent downgrade. QR/NFC invitation schema stays v1.
+must be updated; there is no silent downgrade. Public invitations use schema v1;
+private NFC invitations use schema v2 with an admission secret (group-modes.md).
 
 Connection setup:
 
 - Client `hello`: `name` (1–32 UTF-16 units), `after` (last received host sequence).
   First join uses zero and no credentials. Resume includes `groupId` and `token`
   issued in the previous welcome; display name is not a resume identity.
+  A first-time private-group join also requires `admissionToken` from the NFC
+  invitation. Missing/wrong secrets receive `ended` before welcome or roster.
+  A valid resume token identifies a previously admitted participant and does not
+  require another admission secret. Public hosts do not require this field.
 - Host `welcome`: `selfId`, `groupId`, `token`, `baseline`, `gap`. A valid resume
   preserves the participant ID and name. Unknown credentials or another session
   get `ended` with a reason; the host never falls back to a fresh identity silently.

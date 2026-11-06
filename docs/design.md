@@ -21,7 +21,7 @@ not be labelled recipient delivery or a read receipt. See [roadmap.md](roadmap.m
 
 ## Connection prototype
 
-The home screen offers Create a group and Find nearby devices. Discovered peers
+The home screen offers Private/Public selection, Create a group and Find public groups. Discovered public hosts
 have Join actions; connected sessions show the device role and actual host IP.
 Users can cancel discovery/connection or disconnect; hosts confirm ending the
 group. Permission failures and disabled Wi-Fi/Location have recovery messages.
@@ -36,11 +36,15 @@ draft creates a separate message. Drafts can be edited while disconnected, but
 sending requires a ready connection. Missing replay history has a visible warning.
 An ended session shows Start new chat when a network is connected, with confirmation
 before discarding the previous local history, draft and outbox.
-Connected hosts can show/hide a group QR invitation. Android 10+ clients can scan,
+Connected public hosts can show/hide a group QR invitation. Android 10+ clients can scan,
 review the group name and confirm joining. Invalid codes stay on the scanner
 screen with guidance; camera denial explains how to enable access. The QR uses
 a white background and black modules for readability in either theme. NFC sharing
 and reading use dedicated screens and the same join confirmation.
+Private is the default on NFC-sharing-capable phones; otherwise Public is selected.
+Private hosts have no QR action, and their NFC error guidance never suggests QR.
+The mode description explains that private groups are absent from app discovery,
+but their Wi-Fi signal is detectable and chat is not yet encrypted.
 
 Move UI strings into Flutter localization resources when adding more screens or
 a second language. Keep session state and connection coordination in the existing

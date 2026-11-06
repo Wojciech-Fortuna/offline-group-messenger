@@ -13,17 +13,24 @@ connection adapter remains a stub. Connected Android phones can exchange text
 messages through a shared Dart TCP chat layer, with host broadcasting, a live
 participant list and join/leave notices.
 
-Hosts can display a **group QR code**. On Android 10+, another phone can scan it,
+Choose **Private** (NFC invitations only) or **Public** when creating a group.
+Private groups do not appear in the app's discovery list and require an NFC-issued
+secret for new chat participants. Public groups appear under Find public groups.
+This is invitation-only membership, not encrypted chat or an invisible Wi-Fi signal.
+See [group modes](docs/group-modes.md).
+
+Public hosts can display a **group QR code**. On Android 10+, another phone can scan it,
 confirm the group and join without choosing a device from the discovery list.
 The scanner works offline and asks for camera permission when opened.
-Older Android phones can still use nearby-device discovery.
+Older Android phones can still discover public groups.
 
 Android phones with NFC can also use **tap invitations**. The host opens
 **Share via NFC**; the joining phone opens **Join via NFC**, taps the host and
 confirms the invitation. Sharing requires HCE support; joining requires Android
 10+ and NFC. Both phones must stay unlocked with the app open. Sharing turns off
 after 60 seconds, on leaving the sharing screen, or when the app is backgrounded.
-QR remains available on phones without NFC. See [NFC testing](docs/nfc-testing.md).
+QR remains available for public groups on phones without NFC. Private groups have
+no QR fallback. See [NFC testing](docs/nfc-testing.md).
 
 ## Structure
 

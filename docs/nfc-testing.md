@@ -8,7 +8,7 @@
 - Install/rebuild the updated APK on both phones; hot reload alone cannot install
   the new native service/manifest. Keep both phones unlocked and the app foregrounded.
 
-1. Create a Wi-Fi Direct group on the host, then open **Share via NFC**.
+1. Create a Private Wi-Fi Direct group on the host, then open **Share via NFC**.
 2. On the other phone open **Join via NFC**.
 3. Hold the phones' NFC antennas together, generally near the backs/top edges.
    Antenna placement varies; remove thick/metal cases if necessary. Keep them
@@ -17,11 +17,14 @@
    Cancel first and verify no connection is made. Repeat, confirm **Join**, and
    accept any Android connection prompts.
 5. Once connected, open chat on both and exchange messages. NFC carries only the
-   invitation; ongoing communication remains Wi-Fi Direct/TCP.
+   invitation; ongoing communication remains Wi-Fi Direct/TCP. Verify there is no
+   QR-sharing action for the private host and it is absent from Find public groups.
+   Repeat with a Public group to verify public NFC and QR alternatives.
 
 ## Recovery and privacy checks on hardware
 
-- Turn NFC off: starting a session should explain how to enable it; QR still works.
+- Turn NFC off: starting a session should explain how to enable it. Private groups
+  have no QR fallback; public groups still offer QR.
 - Interrupt a tap: expect a read error or timeout, then use Retry NFC.
 - Touch an unrelated NFC tag: it must not join any group.
 - Press Back during a read: a late result must not open a confirmation or join.
@@ -32,7 +35,9 @@
 - Try several phone pairs and antenna alignments. OEM behavior, screen-lock
   settings and HCE routing cannot be validated with Dart mocks or JVM tests alone.
 
-Sharing is not one-time and does not authenticate the reader. Any nearby reader
+Sharing is not one-time and does not authenticate the reader. Private invitations
+also contain a chat admission secret; these are reusable bearer credentials.
+Any nearby reader
 that knows the application protocol can request the Wi-Fi password during the
 explicit sharing window. Expiry stops future reads; it does not invalidate a
 password already copied. Do not describe this as secure or encrypted pairing.
@@ -50,7 +55,8 @@ This is a custom ISO-DEP protocol, not an NDEF tag or a system-level tap-to-open
 - SELECT: `00 A4 04 00 09 F0 4F 46 46 4C 49 4E 45 01`.
 - Successful SELECT returns a two-byte big-endian payload length followed by `90 00`.
 - Read: `00 B0 offsetHi offsetLo length`; 1–200 bytes per response, followed by `90 00`.
-- Maximum payload: 2048 bytes of UTF-8 invitation JSON (same schema as QR).
+- Maximum payload: 2048 bytes of UTF-8 invitation JSON (public v1 matches QR;
+  private v2 adds privateGroup and admissionToken and is rejected by the QR scanner).
 - Unknown commands, out-of-range reads and missing/expired/revoked sharing return
   error status words. Readers reject short replies, inconsistent lengths and errors.
 - Revoking or replacing the active payload invalidates an already-selected session.

@@ -47,7 +47,7 @@ https://docs.flutter.dev/platform-integration/platform-channels
   chat clears local history/draft/outbox; rejoining never silently sends them to
   a different group. Everything remains in memory, scoped to this app process.
   See chat-protocol.md for protocol v2, bounded replay and retry limitations.
-- Host QR invitations use group network credentials fetched on explicit request.
+- Public host QR invitations use group network credentials fetched on explicit request.
   Android 10+ joins with WifiP2pConfig.Builder SSID/passphrase; discovery remains
   available on older versions. mobile_scanner uses bundled ML Kit so first scan
   does not require Internet. qr_flutter renders a black-on-white QR in either theme.
@@ -56,6 +56,15 @@ https://docs.flutter.dev/platform-integration/platform-channels
   timeouts and cancellation. InvitationApdu is a pure Kotlin protocol with JVM
   tests. Both QR and NFC return the same validated GroupInvitation and require
   the same confirmation before joinInvitation. No NFC chat transport is added.
+- Private creation generates a 256-bit admission secret in Dart and passes it to
+  native group creation for NFC sharing. Private invitation schema v2 carries it;
+  public invitations retain schema v1. The native QR method and Dart scanner both
+  reject private invitations. The TCP host checks admission before sending any
+  welcome/roster/history to a first-time participant. Resume tokens still work.
+- PublicGroupDiscovery registers a DNS-SD service for public hosts only and filters
+  discovery responses to this app's public service records. Generic Wi-Fi devices
+  are excluded. Advertisement callbacks and scans have generation/lifecycle checks;
+  service records contain no credentials. Nearby entries expire after 60 seconds.
 
 ## Next implementation steps
 
@@ -68,8 +77,8 @@ versions and outcomes. No completed hardware-validation results are recorded yet
 Automated recovery tests can be implemented here; they do not satisfy that gate.
 
 Authenticated encryption, durable storage and background operation follow.
-App-specific service discovery is also outstanding: current discovery lists
-generic Wi-Fi peers. QR/NFC already offer explicit invitations.
+App-specific public discovery and NFC-only private admission are implemented;
+see group-modes.md for their limits and hardware acceptance checks.
 
 The Android host leaving ends the group in the first prototype. Host migration,
 multi-hop forwarding and background operation are separate milestones.
