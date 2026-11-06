@@ -85,7 +85,7 @@ Connected state requires a host address. Discovery may end with no results.
 Peer IDs are Android-provided addresses for this discovery session; do not persist
 them as participant identities. Peer names do not authenticate an app or user.
 Public discovery uses OfflineMessenger._ogm._tcp.local TXT records with app,
-v=2 and mode=public. Private hosts register no service. Entries expire after 60
+v=3 and mode=public. Private hosts register no service. Entries expire after 60
 seconds without a response. Android-level Wi-Fi visibility is not suppressed.
 
 ## Errors and cleanup

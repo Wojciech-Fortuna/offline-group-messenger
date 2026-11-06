@@ -46,7 +46,7 @@ https://docs.flutter.dev/platform-integration/platform-channels
 - Host departure or a changed host session ends the conversation. Explicit new
   chat clears local history/draft/outbox; rejoining never silently sends them to
   a different group. Everything remains in memory, scoped to this app process.
-  See chat-protocol.md for protocol v2, bounded replay and retry limitations.
+  See chat-protocol.md for protocol v3, bounded replay and retry limitations.
 - Public host QR invitations use group network credentials fetched on explicit request.
   Android 10+ joins with WifiP2pConfig.Builder SSID/passphrase; discovery remains
   available on older versions. mobile_scanner uses bundled ML Kit so first scan
@@ -70,7 +70,9 @@ https://docs.flutter.dev/platform-integration/platform-channels
 
 The canonical sequence is in [roadmap.md](roadmap.md). Session recovery is
 implemented with automated coverage. Host acceptance remains distinct from
-recipient delivery or read receipts. This milestone uses memory only.
+recipient delivery or read receipts. Protocol v3 adds identity-bound client
+acknowledgements and bounded delivery snapshots sent only to the message sender.
+See delivery-receipts.md for three-stage checks and resume behavior. State uses memory only.
 
 Run the two/three-phone Wi-Fi Direct, chat and NFC checks and record device/OS
 versions and outcomes. No completed hardware-validation results are recorded yet.

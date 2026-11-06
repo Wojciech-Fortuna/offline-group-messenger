@@ -5,6 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:offline_group_messenger/core/messaging/chat_session_controller.dart';
 import 'package:offline_group_messenger/core/messaging/tcp_message_transport.dart';
 import 'package:offline_group_messenger/core/models/chat_message.dart';
+import 'package:offline_group_messenger/core/models/message_delivery.dart';
+import 'package:offline_group_messenger/core/models/participant.dart';
 import 'package:offline_group_messenger/features/chat/chat_screen.dart';
 
 class FakeTransport extends TcpMessageTransport {
@@ -12,6 +14,21 @@ class FakeTransport extends TcpMessageTransport {
   final requests = <ChatMessage>[];
   bool failSend = false;
   int next = 0;
+  MessageDelivery? delivery;
+  @override
+  MessageDelivery? deliveryFor(String messageId) => delivery;
+  void updateDelivery(Set<String> received) {
+    delivery = MessageDelivery(
+      sequence: 1,
+      recipients: const [
+        Participant(id: 'bob', displayName: 'Bob'),
+        Participant(id: 'carol', displayName: 'Carol'),
+      ],
+      received: received,
+    );
+    notifyListeners();
+  }
+
   @override
   String get groupId => 'g';
   @override
@@ -48,6 +65,55 @@ class FakeTransport extends TcpMessageTransport {
 }
 
 void main() {
+  testWidgets('one, two and three checks expose live recipient details', (
+    tester,
+  ) async {
+    final transport = FakeTransport()
+      ..status = ChatStatus.ready
+      ..selfId = 'me';
+    final chat = ChatSessionController(transport: transport);
+    addTearDown(chat.dispose);
+    await tester.pumpWidget(MaterialApp(home: ChatScreen(chat: chat)));
+    await tester.enterText(find.byType(TextField), 'Check delivery');
+    await tester.tap(find.byTooltip('Send message'));
+    await tester.pumpAndSettle();
+    transport.updateDelivery({});
+    await tester.pumpAndSettle();
+    expect(
+      find.byTooltip('Accepted by host; not a read receipt'),
+      findsOneWidget,
+    );
+    expect(find.byIcon(Icons.check), findsOneWidget);
+    transport.updateDelivery({'bob'});
+    await tester.pumpAndSettle();
+    expect(
+      find.byTooltip('Someone else received it; not a read receipt'),
+      findsOneWidget,
+    );
+    expect(find.byIcon(Icons.done_all), findsOneWidget);
+    expect(find.byIcon(Icons.check), findsNothing);
+    await tester.tap(
+      find.byTooltip('Someone else received it; not a read receipt'),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('1 of 2 other phones received it'), findsOneWidget);
+    expect(find.text('Bob'), findsOneWidget);
+    expect(find.text('Carol'), findsOneWidget);
+    expect(find.text('Awaiting confirmation'), findsOneWidget);
+    transport.updateDelivery({'bob', 'carol'});
+    await tester.pumpAndSettle();
+    expect(find.text('2 of 2 other phones received it'), findsOneWidget);
+    expect(find.text('Awaiting confirmation'), findsNothing);
+    Navigator.of(tester.element(find.text('Message delivery'))).pop();
+    await tester.pumpAndSettle();
+    expect(
+      find.byTooltip('Everyone received it; not a read receipt'),
+      findsOneWidget,
+    );
+    expect(find.byIcon(Icons.check), findsOneWidget);
+    expect(find.byIcon(Icons.done_all), findsOneWidget);
+  });
+
   testWidgets(
     'confirmed messages, failed retry keeps ID, draft survives navigation',
     (tester) async {

@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:offline_connectivity/offline_connectivity.dart';
 
 import '../models/chat_message.dart';
+import '../models/message_delivery.dart';
 import '../models/participant.dart';
 import 'tcp_message_transport.dart';
 
@@ -53,6 +54,8 @@ class ChatSessionController extends ChangeNotifier {
       _connection.status == GroupStatus.connected &&
       _connection.hostAddress != null;
   List<Participant> get participants => transport.participants;
+  MessageDelivery? deliveryFor(String messageId) =>
+      transport.deliveryFor(messageId);
   List<SessionMessage> get messages => [
     for (final message in _history)
       SessionMessage(message, DeliveryState.confirmed),

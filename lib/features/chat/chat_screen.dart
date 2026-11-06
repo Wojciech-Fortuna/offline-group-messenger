@@ -53,6 +53,85 @@ class _ChatScreenState extends State<ChatScreen> {
     if (confirmed == true && mounted) widget.chat.startNewChat();
   }
 
+  String _deliveryLabel(String id) {
+    final delivery = widget.chat.deliveryFor(id);
+    return switch (delivery?.checks ?? 1) {
+      3 => 'Everyone received it; not a read receipt',
+      2 => 'Someone else received it; not a read receipt',
+      _ => 'Accepted by host; not a read receipt',
+    };
+  }
+
+  void _showDelivery(String id) => showModalBottomSheet<void>(
+    context: context,
+    builder: (_) => ListenableBuilder(
+      listenable: widget.chat,
+      builder: (context, _) {
+        final delivery = widget.chat.deliveryFor(id);
+        return SafeArea(
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              const ListTile(
+                title: Text('Message delivery'),
+                subtitle: Text('Received by the app, not necessarily read.'),
+              ),
+              const ListTile(
+                leading: Icon(Icons.check),
+                title: Text('Host received it'),
+              ),
+              if (delivery == null)
+                const ListTile(title: Text('Recipient details unavailable'))
+              else ...[
+                ListTile(
+                  title: Text(
+                    '${delivery.received.length} of ${delivery.recipients.length} other phones received it',
+                  ),
+                  subtitle: const Text(
+                    'Phones connected when the host accepted this message.',
+                  ),
+                ),
+                if (delivery.recipients.isEmpty)
+                  const ListTile(
+                    title: Text('No other recipient phones were connected.'),
+                  ),
+                for (final p in delivery.recipients)
+                  ListTile(
+                    title: Text(p.displayName),
+                    subtitle: Text(
+                      delivery.received.contains(p.id)
+                          ? 'Received'
+                          : 'Awaiting confirmation',
+                    ),
+                    leading: Icon(
+                      delivery.received.contains(p.id)
+                          ? Icons.done_all
+                          : Icons.schedule,
+                    ),
+                  ),
+              ],
+            ],
+          ),
+        );
+      },
+    ),
+  );
+
+  Widget _deliveryChecks(String id) {
+    final checks = widget.chat.deliveryFor(id)?.checks ?? 1;
+    return IconButton(
+      tooltip: _deliveryLabel(id),
+      onPressed: () => _showDelivery(id),
+      icon: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (checks == 3) const Icon(Icons.check, size: 14),
+          Icon(checks >= 2 ? Icons.done_all : Icons.check, size: 14),
+        ],
+      ),
+    );
+  }
+
   @override
   void dispose() {
     widget.chat.removeListener(_syncDraft);
@@ -184,17 +263,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                         const SizedBox(height: 4),
                                         if (entry.delivery ==
                                             DeliveryState.confirmed)
-                                          Tooltip(
-                                            message:
-                                                'Accepted by host; not a read receipt',
-                                            child: Icon(
-                                              Icons.check,
-                                              size: 14,
-                                              color: Theme.of(
-                                                context,
-                                              ).colorScheme.onSurfaceVariant,
-                                            ),
-                                          )
+                                          _deliveryChecks(message.id)
                                         else
                                           Text(
                                             entry.delivery ==

@@ -1,6 +1,6 @@
 # Message delivery checks
 
-Planned milestone: application-level receipt acknowledgements, not read receipts.
+Implemented milestone: application-level receipt acknowledgements, not read receipts.
 
 - One check: the host accepted the message.
 - Two checks: at least one other client received it from the host.
@@ -24,6 +24,10 @@ each `message`, including replay. The host binds each receipt to the socket's
 resumed participant identity; a client cannot acknowledge for another identity.
 Unknown/expired receipts and receipts from non-targets are ignored. Wrong sequence
 numbers and duplicate receipts never advance delivery.
+
+After synchronization, clients resend receipts for retained incoming messages,
+including those already covered by the replay cursor. This recovers a receipt
+lost after the app recorded its message. Duplicate receipts are harmless.
 
 The host sends `delivery` only to the message's sender, containing `id`, `sequence`,
 and `recipients` (`id`, `name`, boolean `received`). Targets are fixed at acceptance.

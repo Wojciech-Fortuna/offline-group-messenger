@@ -9,7 +9,9 @@ build/commit, joining method and outcome for each run.
    create a Public group and join using QR, NFC or public discovery. Also repeat
    with a Private group using NFC only. Keep the app foregrounded.
 2. Open chat and send both ways, including Unicode, emoji and multiline text.
-   Verify participants and sent checkmarks (accepted by host, not read receipts).
+   Verify participants and sent checkmarks: one for host acceptance, two for at
+   least one other client receipt, three for all targeted client receipts.
+   Tap checks for per-recipient details. These are not read receipts.
    No Internet/mobile data is needed.
 3. Add a third phone. New messages appear once on all phones with the right sender.
    A first-time participant does not receive history from before joining.
@@ -42,12 +44,12 @@ They also check replay gaps, retry expiry, changed sessions, malformed input,
 native-state transitions, navigation and stale-operation cancellation. They do
 not emulate radio behavior, OEM dialogs or background scheduling.
 
-## Wire format v2
+## Wire format v3
 
 TCP port **45871**. The host binds only to the actual group-owner IP supplied by
-Android. Frames are UTF-8 JSON objects followed by LF, with `v: 2`. Embedded
+Android. Frames are UTF-8 JSON objects followed by LF, with `v: 3`. Embedded
 newlines are JSON-escaped. Frames above 32 KiB and malformed/unsupported frames
-close the offending socket. Split/coalesced reads are supported. Protocol v1 peers
+close the offending socket. Split/coalesced reads are supported. Protocol v1/v2 peers
 must be updated; there is no silent downgrade. Public invitations use schema v1;
 private NFC invitations use schema v2 with an admission secret (group-modes.md).
 
@@ -93,6 +95,11 @@ Message exchange:
   termination or rejected resumption. Unexpected abrupt loss remains retryable.
 
 ## Limits and lifecycle
+
+Recipient acknowledgements (`received`) and sender snapshots (`delivery`) are
+specified in [delivery-receipts.md](delivery-receipts.md). They are independent of
+host acceptance and replay cursors. Connected client targets are fixed when a
+message is accepted, excluding its sender; host receipt is the first check.
 
 - At most 15 client sockets plus the host; silent handshakes expire in 5 seconds.
 - At most 128 issued resume identities per host session, including disconnected

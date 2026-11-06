@@ -112,7 +112,7 @@ returning clients resume their identity and receive retained missed messages.
 Unconfirmed sends stay visible with **Retry message** and keep their original ID.
 The app does not automatically resend uncertain messages. A changed/ended host
 session requires an explicit new chat; old outgoing messages are never carried
-into it. All phones must run chat protocol v2 (rebuild/update older installations).
+into it. All phones must run chat protocol v3 (rebuild/update older installations).
 
 This is a plaintext prototype without authenticated identities or end-to-end
 encryption. The last 500 messages/notices are kept in memory. The host separately
@@ -120,7 +120,11 @@ retains 500 text messages for returning participants; a warning appears when som
 missed history has expired. First-time participants do not receive old history.
 Starting a new chat or restarting the process clears local conversation state.
 Host confirmation means the host accepted a message, not that every participant
-received or read it. Storage is not durable.
+received or read it. One check means host acceptance; two mean at least one other
+client received it; three mean every targeted client received it. Tap checks for
+delivery details. Targets are the other clients connected at host acceptance;
+with none, the message stays at one check. These are not read receipts.
+See [delivery receipts](docs/delivery-receipts.md). Storage is not durable.
 
 Session recovery is implemented and covered by automated tests. Run the
 two/three-phone [chat checks](docs/chat-protocol.md) before declaring it

@@ -6,6 +6,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 
 import '../models/chat_message.dart';
+import '../models/message_delivery.dart';
 import '../models/participant.dart';
 import 'message_transport.dart';
 
@@ -17,11 +18,11 @@ class _Identity {
   int lastRequest = 0;
 }
 
-/// Foreground, in-memory protocol v2. Resume tokens are NOT authenticated identity.
+/// Foreground, in-memory protocol v3. Resume tokens are NOT authenticated identity.
 class TcpMessageTransport extends ChangeNotifier implements MessageTransport {
   TcpMessageTransport({this.confirmationTimeout = const Duration(seconds: 6)});
 
-  static const protocolVersion = 2;
+  static const protocolVersion = 3;
   static const defaultPort = 45871;
   static const maxTextLength = 2000;
   static const maxFrameBytes = 32768;
@@ -33,6 +34,7 @@ class TcpMessageTransport extends ChangeNotifier implements MessageTransport {
   final _messages = <ChatMessage>[];
   final _history = <ChatMessage>[];
   final _accepted = <String, ChatMessage>{};
+  final _delivery = <String, MessageDelivery>{};
   final _participants = <Participant>[];
   final _peers = <Socket, _Identity?>{};
   final _identities = <String, _Identity>{};
@@ -65,6 +67,7 @@ class TcpMessageTransport extends ChangeNotifier implements MessageTransport {
   String? get groupId => _groupId;
   List<ChatMessage> get messages => List.unmodifiable(_messages);
   List<Participant> get participants => List.unmodifiable(_participants);
+  MessageDelivery? deliveryFor(String messageId) => _delivery[messageId];
   @override
   Stream<ChatMessage> get incoming => _incoming.stream;
 
@@ -84,6 +87,7 @@ class TcpMessageTransport extends ChangeNotifier implements MessageTransport {
     _messages.clear();
     _history.clear();
     _accepted.clear();
+    _delivery.clear();
     _identities.clear();
     _hostIdentity = null;
     selfId = null;
@@ -292,6 +296,18 @@ class TcpMessageTransport extends ChangeNotifier implements MessageTransport {
       final identity = _peers[socket];
       if (type == 'hello' && identity == null) {
         _hello(socket, frame);
+      } else if (type == 'received' && identity != null) {
+        final id = _string(frame['id'], 130);
+        final sequence = _number(frame['sequence']);
+        final delivery = _delivery[id];
+        final participantId = identity.participant.id;
+        if (delivery != null &&
+            delivery.sequence == sequence &&
+            delivery.recipients.any((p) => p.id == participantId) &&
+            !delivery.received.contains(participantId)) {
+          _delivery[id] = delivery.acknowledge(participantId);
+          _publishDelivery(id);
+        }
       } else if (type == 'send' && identity != null) {
         final request = _string(frame['id'], 16);
         try {
@@ -371,6 +387,17 @@ class TcpMessageTransport extends ChangeNotifier implements MessageTransport {
           throw const FormatException('Incomplete replay');
         }
         status = ChatStatus.ready;
+        // Re-send receipts that may have been lost after recording but before
+        // disconnecting, even when the replay cursor already includes the text.
+        for (final message in _messages) {
+          if (message.sequence > 0 && message.senderId != selfId) {
+            _write(socket, {
+              'type': 'received',
+              'id': message.id,
+              'sequence': message.sequence,
+            });
+          }
+        }
         _notify();
       case 'message':
       case 'ack':
@@ -397,6 +424,66 @@ class TcpMessageTransport extends ChangeNotifier implements MessageTransport {
         }
         _record(message);
         _pending.remove(message.id)?.complete();
+        if (type == 'message' && message.senderId != selfId) {
+          _write(socket, {
+            'type': 'received',
+            'id': message.id,
+            'sequence': message.sequence,
+          });
+        }
+      case 'delivery':
+        if (!_welcomed || !_hasRoster) throw const FormatException('Not ready');
+        final id = _string(frame['id'], 130);
+        final sequence = _number(frame['sequence']);
+        final list = frame['recipients'];
+        if (!id.startsWith('$selfId:') ||
+            sequence == 0 ||
+            sequence > _sequence ||
+            list is! List ||
+            list.length > 15) {
+          throw const FormatException('Invalid delivery snapshot');
+        }
+        _request(id.substring(selfId!.length + 1));
+        final recipients = <Participant>[];
+        final received = <String>{};
+        for (final item in list) {
+          if (item is! Map || item['received'] is! bool) {
+            throw const FormatException('Invalid recipient');
+          }
+          final recipientId = _string(item['id'], 64);
+          if (recipientId == selfId ||
+              recipients.any((p) => p.id == recipientId)) {
+            throw const FormatException('Invalid recipient identity');
+          }
+          recipients.add(
+            Participant(
+              id: recipientId,
+              displayName: _string(item['name'], 32),
+            ),
+          );
+          if (item['received'] == true) received.add(recipientId);
+        }
+        final previous = _delivery[id];
+        if (previous != null &&
+            (previous.sequence != sequence ||
+                !setEquals(
+                  previous.recipients.map((p) => p.id).toSet(),
+                  recipients.map((p) => p.id).toSet(),
+                ) ||
+                !received.containsAll(previous.received))) {
+          throw const FormatException(
+            'Delivery cannot regress or change targets',
+          );
+        }
+        _delivery[id] = MessageDelivery(
+          sequence: sequence,
+          recipients: recipients,
+          received: received,
+        );
+        if (_delivery.length > acceptanceLimit) {
+          _delivery.remove(_delivery.keys.first);
+        }
+        _notify();
       case 'rejected':
         if (!_welcomed) throw const FormatException('Missing welcome');
         final id = '$selfId:${_string(frame['id'], 16)}';
@@ -475,6 +562,11 @@ class TcpMessageTransport extends ChangeNotifier implements MessageTransport {
       for (final message in _history) {
         if (message.sequence > baseline) _write(socket, _frame(message));
       }
+      for (final message in _accepted.values) {
+        if (message.senderId == identity.participant.id) {
+          _write(socket, _deliveryFrame(message.id));
+        }
+      }
     }
     _write(socket, {'type': 'synced', 'through': _sequence});
   }
@@ -510,7 +602,10 @@ class TcpMessageTransport extends ChangeNotifier implements MessageTransport {
       if (previous.text != text) {
         throw StateError('A retry must keep the original message text.');
       }
-      if (socket != null) _write(socket, _frame(previous, type: 'ack'));
+      if (socket != null) {
+        _write(socket, _frame(previous, type: 'ack'));
+        _write(socket, _deliveryFrame(id));
+      }
       return;
     }
     if (request <= identity.lastRequest) {
@@ -529,13 +624,52 @@ class TcpMessageTransport extends ChangeNotifier implements MessageTransport {
       sequence: ++_sequence,
     );
     _accepted[id] = message;
+    _delivery[id] = MessageDelivery(
+      sequence: message.sequence,
+      recipients: _participants
+          .where((p) => p.id != selfId && p.id != sender.id)
+          .toList(),
+    );
     if (_accepted.length > acceptanceLimit) {
-      _accepted.remove(_accepted.keys.first);
+      final expired = _accepted.keys.first;
+      _accepted.remove(expired);
+      _delivery.remove(expired);
     }
     _history.add(message);
     if (_history.length > historyLimit) _history.removeAt(0);
     _record(message);
     _broadcast(_frame(message));
+    _publishDelivery(id);
+  }
+
+  Map<String, Object?> _deliveryFrame(String id) {
+    final delivery = _delivery[id]!;
+    return {
+      'type': 'delivery',
+      'id': id,
+      'sequence': delivery.sequence,
+      'recipients': [
+        for (final p in delivery.recipients)
+          {
+            'id': p.id,
+            'name': p.displayName,
+            'received': delivery.received.contains(p.id),
+          },
+      ],
+    };
+  }
+
+  void _publishDelivery(String id) {
+    final sender = _accepted[id]!.senderId;
+    if (sender == selfId) {
+      _notify();
+      return;
+    }
+    for (final entry in _peers.entries.toList()) {
+      if (entry.value?.participant.id == sender) {
+        _write(entry.key, _deliveryFrame(id));
+      }
+    }
   }
 
   void _record(ChatMessage message) {

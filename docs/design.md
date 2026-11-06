@@ -16,8 +16,11 @@ the host confirms ending the group. A separate lobby is not implemented.
 
 Discovery appears on the home screen with searching, empty, denied and error
 states. Use text alongside color to explain connection status. Chat shows pending,
-confirmed (a small checkmark) and failed/unconfirmed message states. Host confirmation must
-not be labelled recipient delivery or a read receipt. See [roadmap.md](roadmap.md).
+host-accepted (one check), received by at least one other client (two checks),
+received by all targeted clients (three checks), and failed/unconfirmed states.
+Tap checks for live per-recipient details. These are not read receipts. Targets
+are fixed at host acceptance; no other clients means one check only.
+See [delivery-receipts.md](delivery-receipts.md) and [roadmap.md](roadmap.md).
 
 ## Connection prototype
 

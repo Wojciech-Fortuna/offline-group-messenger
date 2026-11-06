@@ -6,8 +6,8 @@ internal object PublicGroupRecord {
     const val TYPE = "_ogm._tcp"
     fun accepts(domain: String, record: Map<String, String>): Boolean =
         domain.trimEnd('.').equals("$INSTANCE.$TYPE.local", ignoreCase = true) &&
-            record["app"] == "offline-group-messenger" && record["v"] == "2" && record["mode"] == "public"
+            record["app"] == "offline-group-messenger" && record["v"] == "3" && record["mode"] == "public"
     fun fields(): Map<String, String> = mapOf(
-        "app" to "offline-group-messenger", "v" to "2", "mode" to "public"
+        "app" to "offline-group-messenger", "v" to "3", "mode" to "public"
     )
 }

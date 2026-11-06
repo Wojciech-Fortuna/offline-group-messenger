@@ -9,6 +9,7 @@ class PublicGroupRecordTest {
         assertTrue(PublicGroupRecord.accepts(domain, PublicGroupRecord.fields()))
         assertFalse(PublicGroupRecord.accepts(domain, PublicGroupRecord.fields() + ("mode" to "private")))
         assertFalse(PublicGroupRecord.accepts(domain, PublicGroupRecord.fields() + ("v" to "1")))
+        assertFalse(PublicGroupRecord.accepts(domain, PublicGroupRecord.fields() + ("v" to "2")))
         assertFalse(PublicGroupRecord.accepts(domain, mapOf("mode" to "public")))
         assertFalse(PublicGroupRecord.accepts("Other._ogm._tcp.local.", PublicGroupRecord.fields()))
     }

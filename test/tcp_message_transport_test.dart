@@ -116,14 +116,14 @@ void main() {
       socket.listen((_) {});
       addTearDown(socket.destroy);
       final hello = utf8.encode(
-        '${jsonEncode({'v': 2, 'type': 'hello', 'name': 'Raw', 'after': 0})}\n',
+        '${jsonEncode({'v': TcpMessageTransport.protocolVersion, 'type': 'hello', 'name': 'Raw', 'after': 0})}\n',
       );
       socket.add(hello.sublist(0, 8));
       await socket.flush();
       socket.add(hello.sublist(8));
       await until(() => host.participants.length == 2);
       final frame =
-          '${jsonEncode({'v': 2, 'type': 'send', 'id': '1', 'text': 'Hello', 'senderId': host.selfId})}\n';
+          '${jsonEncode({'v': TcpMessageTransport.protocolVersion, 'type': 'send', 'id': '1', 'text': 'Hello', 'senderId': host.selfId})}\n';
       socket.add(utf8.encode('$frame$frame'));
       await until(() => host.messages.any((m) => m.text == 'Hello'));
       await Future<void>.delayed(const Duration(milliseconds: 50));
