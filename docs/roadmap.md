@@ -44,6 +44,10 @@ Automated loopback tests do not establish physical-radio interoperability.
 
 ## 3. Authenticated encryption
 
+Membership/discovery follow-up in progress: remembered private rejoin, host removal
+with resume revocation/admission rotation, and bounded service discovery recovery.
+See [private-membership.md](private-membership.md) for scope and acceptance.
+
 Requested delivery milestone (implemented; hardware validation outstanding): one check for host acceptance, two
 for receipt by at least one other client, three for all recipients (including the host) targeted when the
 host accepted the message. See [delivery-receipts.md](delivery-receipts.md) for
