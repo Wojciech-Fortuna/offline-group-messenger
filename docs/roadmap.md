@@ -17,8 +17,10 @@ This expands the security, storage and background milestones below: contact
 authentication and persistence precede calling, while full chat-history storage
 remains separately scoped. NFC pairing never grants membership of an existing
 private group. Bluetooth is proposed for ringing before a Wi-Fi connection exists;
-audio remains local Wi-Fi Direct. First resolve the remaining group negotiation
-failure recorded in [discovery-join-recovery.md](discovery-join-recovery.md).
+audio remains local Wi-Fi Direct. Huawei joining OPPO is user-confirmed working
+on the latest attempt; the earlier failure in
+[discovery-join-recovery.md](discovery-join-recovery.md) is historical. Record the
+remaining C0 matrix separately from the unimplemented C1 BLE/media experiments.
 
 ## 1. Align documentation (complete)
 

@@ -33,7 +33,7 @@ Source: [Android 9 WifiP2pServiceImpl](https://android.googlesource.com/platform
 All discovery and connection traffic stays local. Public DNS-SD still contains
 no network password or private admission token; initial private admission is NFC.
 
-## Validation and remaining hardware issue
+## Validation and historical hardware issue
 
 All 18 native unit tests pass, including eight peer-gate tests for present and
 missing hosts, unrelated devices, deadlines, missing callbacks, obsolete commands
@@ -44,9 +44,15 @@ present, `joinGroup accepted` replaced the prior immediate error 0, and Android
 entered ProvisionDiscoveryState then GroupNegotiationState. This verifies the
 handoff correction on the device that previously rejected connect.
 
-The same attempt subsequently ended with P2P-GROUP-FORMATION-FAILURE. Full joining
-is therefore NOT verified. OPPO and Xiaomi were absent from ADB for this test;
-host-side invitation handling and negotiation logs must be checked over USB.
+The same attempt subsequently ended with P2P-GROUP-FORMATION-FAILURE. OPPO and
+Xiaomi were absent from ADB for that test. This records the historical failed
+attempt, not the latest outcome.
+
+User follow-up reported on 2026-11-07: Huawei successfully joined the OPPO group
+on the latest attempt. The exact test time, build and radio conditions were not
+recorded. Treat Huawei-to-OPPO joining as user-confirmed working; the earlier
+failure is not an established current blocker. The broader host-rotation,
+router-free, rejection, timeout and retry matrix is not yet fully recorded.
 
 ## C0 follow-up: bounded setup and stale callbacks
 

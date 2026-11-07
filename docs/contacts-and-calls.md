@@ -227,9 +227,10 @@ before the action callback completes the request; late/duplicate action callback
 cannot turn that success into failure. Failure invalidates the operation revision
 so queued callbacks cannot operate on a later retry.
 
-This does not establish the cause or fix of the observed OPPO/Huawei negotiation
-failure. At review time all three phones were visible to ADB, but MI 9 and OPPO
-were on wireless ADB and only Huawei was on USB. OPPO had no retained
-OfflineConnection/OfflineDiscovery entries for the earlier attempt. A fresh
-same-build run with host-side logs and system invitation handling is still needed.
-Do not mark C0 complete or claim contacts/calling based on automated checks alone.
+User follow-up reported on 2026-11-07 confirms that Huawei successfully joined
+the OPPO group on the latest attempt. This supersedes the earlier failed attempt
+as the latest outcome for that direction; the historical failure is not an
+established current blocker. The exact successful build and radio conditions
+were not recorded. The complete C0 host-rotation/offline/rejection/timeout/retry
+matrix remains to be recorded, and C1 BLE/media feasibility remains unimplemented.
+Do not infer that contacts or calling are implemented from successful group joining.
