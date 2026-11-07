@@ -16,8 +16,10 @@ Code changes implemented; physical acceptance remains pending:
   watch token, leaving a state that could no longer progress or time out. It now
   returns a recoverable state and cancels pending negotiation. A group already
   confirmed connected is preserved if the action callback alone is missing.
-- Discovery shutdown now completes before connect/create is issued. Queued
-  discovery callbacks are invalidated before starting the next Wi-Fi Direct action.
+- Discovery shutdown completes before creation and credential-based joining.
+  Public MAC-address joining instead detaches callbacks without native shutdown,
+  which can flush the selected peer. See [discovery-join-recovery.md](discovery-join-recovery.md)
+  for the subsequent correction and bounded peer refresh.
 - Group setup must use authoritative P2P state and the actual group interface;
   never an infrastructure Wi-Fi IP or an Internet-connectivity check. If a formed
   host group temporarily omits its IP, query its group interface for a local IPv4.

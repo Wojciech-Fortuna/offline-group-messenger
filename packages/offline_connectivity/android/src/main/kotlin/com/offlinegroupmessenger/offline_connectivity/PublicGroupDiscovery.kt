@@ -148,7 +148,7 @@ internal class PublicGroupDiscovery(
 
     private fun publishPeers() = onPeers(peers.values.map { it.first }.sortedBy { it["name"].toString() })
 
-    fun stopSearch(onStopped: (() -> Unit)? = null) {
+    fun stopSearch(stopNativeDiscovery: Boolean = true, onStopped: (() -> Unit)? = null) {
         val wasScanning = scanning
         scanning = false
         scanRevision++
@@ -160,7 +160,9 @@ internal class PublicGroupDiscovery(
         }
         peers.clear()
         onPeers(emptyList())
-        if (ch != null && (wasScanning || onStopped != null)) {
+        // STOP_DISCOVERY can flush Android's peer table. MAC-address joining
+        // must only detach our callbacks; connect stops the native scan itself.
+        if (stopNativeDiscovery && ch != null && (wasScanning || onStopped != null)) {
             try { manager.stopPeerDiscovery(ch, object : WifiP2pManager.ActionListener {
                 override fun onSuccess() { onStopped?.invoke() }
                 override fun onFailure(reason: Int) { onStopped?.invoke() }

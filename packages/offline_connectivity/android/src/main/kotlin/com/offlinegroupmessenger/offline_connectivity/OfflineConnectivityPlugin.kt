@@ -446,12 +446,36 @@ class OfflineConnectivityPlugin : FlutterPlugin, ActivityAware,
             }
             "joinGroup" -> {
                 clearConnection("connecting"); emit()
-                mgr.connect(ch, WifiP2pConfig().apply {
-                    deviceAddress = peerId
-                    wps.setup = WpsInfo.PBC
-                    groupOwnerIntent = 0
-                }, listener)
-                watchConnection(token)
+                PeerPresenceGate(
+                    target = requireNotNull(peerId),
+                    isCurrent = { attached && token == revision && pending != null && status == "connecting" },
+                    requestPeers = { reply -> guarded {
+                        mgr.requestPeers(ch) { devices -> reply(devices.deviceList.map { it.deviceAddress }) }
+                    } },
+                    discoverPeers = { ready, failed -> guarded {
+                        Log.d("OfflineConnection", "Refreshing selected public host presence")
+                        mgr.discoverPeers(ch, object : WifiP2pManager.ActionListener {
+                            override fun onSuccess() = ready()
+                            override fun onFailure(reason: Int) = failed(reason)
+                        })
+                    } },
+                    schedule = { delay, task -> handler.postDelayed({ task() }, delay) },
+                    onReady = { guarded {
+                        Log.d("OfflineConnection", "Selected public host present; connecting without flushing discovery")
+                        mgr.connect(ch, WifiP2pConfig().apply {
+                            deviceAddress = peerId
+                            wps.setup = WpsInfo.PBC
+                            groupOwnerIntent = 0
+                        }, listener)
+                        watchConnection(token)
+                    } },
+                    onFailure = { reason ->
+                        try { mgr.stopPeerDiscovery(ch, null) } catch (_: RuntimeException) {}
+                        if (reason == null) {
+                            fail("peer_unavailable", "The selected host is no longer visible to Android. Find nearby groups again and retry.")
+                        } else listener.onFailure(reason)
+                    }
+                ).start()
             }
             "joinInvitation" -> {
                 clearConnection("connecting"); emit()
@@ -499,6 +523,10 @@ class OfflineConnectivityPlugin : FlutterPlugin, ActivityAware,
           } }
         }
         if (method == "discoverPeers") issueAction()
+        else if (method == "joinGroup") {
+            discovery?.stopSearch(stopNativeDiscovery = false)
+            issueAction()
+        }
         else discovery?.stopSearch { issueAction() } ?: issueAction()
     }
 

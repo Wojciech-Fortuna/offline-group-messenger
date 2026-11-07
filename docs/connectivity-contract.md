@@ -61,8 +61,12 @@ See nfc-testing.md for the protocol and physical-device checks.
 
 A successful create/join call does NOT mean the connection is established.
 Wait for status=connected in the event stream before using hostAddress.
-Creation and joining wait for discovery shutdown before issuing their native
-request. Action timeout returns to idle with an error instead of leaving an
+Creation and credential-based joining wait for discovery shutdown before their
+native request. Public MAC-address joining only detaches app discovery callbacks:
+STOP_DISCOVERY can flush Android's peer table. The selected host is revalidated
+against that table, with at most eight seconds of peer refresh if missing; generic
+peers are never added to the public UI. See discovery-join-recovery.md.
+Action timeout returns to idle with an error instead of leaving an
 unmonitored connecting state. A formed host group may obtain its missing IP from
 its actual P2P interface, never from an infrastructure/Internet network.
 Messaging sockets remain in the shared Dart layer, outside this native API.
@@ -96,7 +100,7 @@ seconds without a response. Android-level Wi-Fi visibility is not suppressed.
 ## Errors and cleanup
 
 PlatformException codes include unsupported, busy, permission_denied,
-wifi_disabled, location_disabled, invalid_peer, no_activity, activity_detached,
+wifi_disabled, location_disabled, invalid_peer, peer_unavailable, no_activity, activity_detached,
 unavailable, channel_lost, connection_failed, timeout and detached.
 Group modes add invalid_group, private_group and discovery_unavailable.
 Asynchronous connection expiry emits connection_timeout in a snapshot.

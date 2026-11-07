@@ -16,7 +16,7 @@ the displayed result older than Android's current peer table.
 
 Source: [Android 9 WifiP2pServiceImpl](https://android.googlesource.com/platform/prebuilts/fullsdk/sources/android-28/+/refs/heads/androidx-activity-release/com/android/server/wifi/p2p/WifiP2pServiceImpl.java).
 
-## Planned correction
+## Implemented correction
 
 - For public joining, invalidate app discovery callbacks and remove the service
   request without calling native STOP_DISCOVERY. Android's connect operation
@@ -32,3 +32,18 @@ Source: [Android 9 WifiP2pServiceImpl](https://android.googlesource.com/platform
 
 All discovery and connection traffic stays local. Public DNS-SD still contains
 no network password or private admission token; initial private admission is NFC.
+
+## Validation and remaining hardware issue
+
+All 18 native unit tests pass, including eight peer-gate tests for present and
+missing hosts, unrelated devices, deadlines, missing callbacks, obsolete commands
+and native discovery failures. The debug APK builds and was installed on Huawei.
+
+USB Huawei retry against the discovered OPPO Reno6 Pro 5G: the selected peer was
+present, `joinGroup accepted` replaced the prior immediate error 0, and Android
+entered ProvisionDiscoveryState then GroupNegotiationState. This verifies the
+handoff correction on the device that previously rejected connect.
+
+The same attempt subsequently ended with P2P-GROUP-FORMATION-FAILURE. Full joining
+is therefore NOT verified. OPPO and Xiaomi were absent from ADB for this test;
+host-side invitation handling and negotiation logs must be checked over USB.
