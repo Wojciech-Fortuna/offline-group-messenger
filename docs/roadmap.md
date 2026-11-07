@@ -10,7 +10,8 @@ for this track is C0 connection reliability, C1 local BLE/audio feasibility, C2
 authenticated identity plus durable NFC contacts, C3 full-duplex calls inside a
 group, C4 BLE call invitations plus temporary Wi-Fi Direct setup, C5 background
 calling, and C6 group push-to-talk. Each milestone is a separate commit without
-co-author trailers. This is a documentation plan; calling is not implemented.
+co-author trailers. Calling is not implemented. C0 recovery hardening is
+implemented; its physical acceptance gate and C1-C6 remain open.
 
 This expands the security, storage and background milestones below: contact
 authentication and persistence precede calling, while full chat-history storage

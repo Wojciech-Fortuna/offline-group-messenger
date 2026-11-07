@@ -1,6 +1,7 @@
 # NFC contacts and offline voice calls
 
-Status: proposed implementation plan, not an implemented feature. Android first.
+Status: C0 recovery hardening implemented; physical connection acceptance remains
+open. Contacts and calling are not implemented. Android first.
 Each milestone gets its own commit without a co-author trailer. This milestone
 records the design and acceptance gates; feature implementation follows later.
 
@@ -210,3 +211,25 @@ contacts are required here even though durable chat-history storage is a separat
 existing roadmap item. Background incoming calls must not be claimed at C3/C4.
 After each milestone: focused automated checks, applicable physical acceptance,
 updated docs and its own commit. Keep unsuccessful hardware outcomes recorded.
+
+## Implementation review and current gate (2026-11-07)
+
+The order above remains necessary. C1 must establish local media reachability
+before selecting a production media/relay adapter. C2 must settle the reviewed
+mutual authentication protocol, recovery and key lifecycle before committing a
+durable contact schema. Existing NFC invitations, MAC addresses and chat
+participant IDs cannot satisfy C2's identity requirements.
+
+C0 software progress: connection setup now separates native action acceptance
+from authoritative usable-group confirmation. A 15-second action deadline and
+75-second overall formation deadline cover missing callbacks. A group confirmed
+before the action callback completes the request; late/duplicate action callbacks
+cannot turn that success into failure. Failure invalidates the operation revision
+so queued callbacks cannot operate on a later retry.
+
+This does not establish the cause or fix of the observed OPPO/Huawei negotiation
+failure. At review time all three phones were visible to ADB, but MI 9 and OPPO
+were on wireless ADB and only Huawei was on USB. OPPO had no retained
+OfflineConnection/OfflineDiscovery entries for the earlier attempt. A fresh
+same-build run with host-side logs and system invitation handling is still needed.
+Do not mark C0 complete or claim contacts/calling based on automated checks alone.

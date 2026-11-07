@@ -43,6 +43,7 @@ class OfflineConnectivityPlugin : FlutterPlugin, ActivityAware,
     private var pending: MethodChannel.Result? = null
     private var afterPermission: (() -> Unit)? = null
     private var operationTimeout: Runnable? = null
+    private var connectionSetup: ConnectionSetup? = null
     private var revision = 0
     private var connectionReadRevision = 0
     private var status = "idle"
@@ -172,6 +173,8 @@ class OfflineConnectivityPlugin : FlutterPlugin, ActivityAware,
         result?.success(value)
     }
     private fun fail(code: String, message: String) {
+        revision++ // Failed operations must not accept late native callbacks.
+        connectionSetup = null
         operationTimeout?.let(handler::removeCallbacks)
         operationTimeout = null
         afterPermission = null
@@ -228,6 +231,7 @@ class OfflineConnectivityPlugin : FlutterPlugin, ActivityAware,
                     hostAddress = info.groupOwnerAddress?.hostAddress
                     status = if (hostAddress != null) "connected" else "connecting"
                     clearError()
+                    if (status == "connected") connectionSetup?.connected()
                     if (isHost && hostAddress == null) {
                         readHostInterface(ch, token, readToken)
                     }
@@ -258,6 +262,7 @@ class OfflineConnectivityPlugin : FlutterPlugin, ActivityAware,
                     hostAddress = address
                     status = "connected"
                     clearError()
+                    connectionSetup?.connected()
                     Log.d("OfflineConnection", "Host address obtained from P2P interface")
                     emit()
                 }
@@ -390,12 +395,33 @@ class OfflineConnectivityPlugin : FlutterPlugin, ActivityAware,
             if (!enabled) { fail("location_disabled", "Enable Location in system settings for Wi-Fi Direct. Internet and a GPS fix are not required."); return }
         }
         val token = ++revision
-        operationTimeout = Runnable {
-            if (token == revision && pending != null) {
-                // A real group can arrive before an OEM delivers its action callback.
-                if (method in listOf("createGroup", "joinGroup", "joinInvitation") && status == "connected") {
-                    finish(); return@Runnable
+        val setup = if (method in listOf("createGroup", "joinGroup", "joinInvitation")) {
+            ConnectionSetup(
+                isCurrent = { attached && token == revision },
+                schedule = { delay, task -> handler.postDelayed({ task() }, delay) },
+                onAccepted = {
+                    Log.d("OfflineConnection", "$method accepted; waiting for authoritative group state")
+                    finish()
+                    readConnection()
+                    emit()
+                },
+                onConnected = { finish() },
+                onFailure = { code, reason ->
+                    try { mgr.cancelConnect(ch, null) } catch (_: RuntimeException) {}
+                    Log.d("OfflineConnection", "$method setup failed: $code reason=$reason")
+                    fail(
+                        if (reason != null) reasonCode(reason) else code,
+                        if (reason != null) reasonMessage(reason)
+                        else if (code == "connection_timeout") "No group formed. Check the other phone and try again."
+                        else "Android did not answer. Disconnect and try again."
+                    )
                 }
+            )
+        } else null
+        connectionSetup = setup
+        setup?.start()
+        if (setup == null) operationTimeout = Runnable {
+            if (token == revision && pending != null) {
                 revision++ // Ignore late callbacks belonging to this timed-out request.
                 if (method == "discoverPeers") discovery?.stopSearch()
                 else try { mgr.cancelConnect(ch, null) } catch (_: RuntimeException) {}
@@ -407,6 +433,7 @@ class OfflineConnectivityPlugin : FlutterPlugin, ActivityAware,
         val listener = object : WifiP2pManager.ActionListener {
             override fun onSuccess() {
                 if (!attached || token != revision) return
+                if (setup != null) { setup.accepted(); return }
                 Log.d("OfflineConnection", "$method accepted; waiting for authoritative group state")
                 finish()
                 if (method == "discoverPeers") readPeers() else readConnection()
@@ -414,6 +441,7 @@ class OfflineConnectivityPlugin : FlutterPlugin, ActivityAware,
             }
             override fun onFailure(reason: Int) {
                 if (attached && token == revision) {
+                    if (setup != null) { setup.rejected(reason); return }
                     Log.d("OfflineConnection", "$method failed: $reason")
                     fail(reasonCode(reason), reasonMessage(reason))
                 }
@@ -574,20 +602,13 @@ class OfflineConnectivityPlugin : FlutterPlugin, ActivityAware,
         }
     }
 
-    // Some devices omit a broadcast after an invitation is rejected. Re-query the
-    // authoritative info while connecting and keep a finite cancellation window.
-    private fun watchConnection(token: Int, remaining: Int = 60) {
+    // Some devices omit connection broadcasts. Poll authoritative info; the
+    // independent ConnectionSetup deadline also covers missing query callbacks.
+    private fun watchConnection(token: Int) {
         handler.postDelayed({
             if (!attached || token != revision || status != "connecting") return@postDelayed
-            if (remaining == 0) {
-                revision++
-                guarded { channel?.let { manager?.cancelConnect(it, null) } }
-                fail("connection_timeout", "No group formed. Check the other phone and try again.")
-                readConnection()
-            } else {
-                readConnection()
-                watchConnection(token, remaining - 1)
-            }
+            readConnection()
+            watchConnection(token)
         }, 1_000)
     }
 

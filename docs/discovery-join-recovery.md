@@ -47,3 +47,36 @@ handoff correction on the device that previously rejected connect.
 The same attempt subsequently ended with P2P-GROUP-FORMATION-FAILURE. Full joining
 is therefore NOT verified. OPPO and Xiaomi were absent from ADB for this test;
 host-side invitation handling and negotiation logs must be checked over USB.
+
+## C0 follow-up: bounded setup and stale callbacks
+
+ConnectionSetup now separates accepted native requests from formed groups with
+a usable host address. Native action callbacks have a 15-second deadline, and
+group formation has a separate 75-second overall deadline starting with the setup
+request (including discovery shutdown/peer refresh). Accepting the request
+releases the method-channel request but leaves Connecting until authoritative
+group information arrives. A confirmed group also releases the request when the
+action callback is missing.
+
+Duplicate/contradictory action callbacks are ignored once the action has answered.
+Successfully formed, failed, cancelled and replaced attempts ignore late setup
+callbacks. Failure invalidates the operation revision, including queued polling
+and peer-refresh callbacks. Polling cannot extend either deadline. Timeout
+cancels negotiation without removing an unrelated group.
+
+Validation: Flutter analysis, 59 application tests, 16 connectivity-package tests,
+25 native tests and the Android debug APK build pass. Seven new native tests cover acceptance without
+formation, missing callbacks, authoritative success before the action response,
+duplicate responses, rejection, timeout and cancellation/retry isolation.
+Physical host/client rotation, offline joining, rejection and retry remain open.
+
+For a fresh failure, capture app logs on both host and client while reproducing:
+
+```powershell
+& "$env:LOCALAPPDATA\Android\sdk\platform-tools\adb.exe" -s '<USB serial>' logcat -v time -s OfflineConnection:D OfflineDiscovery:D '*:S'
+```
+
+Record which phone hosted, Android versions, the system invitation decision and
+whether logs show only `accepted` or an actual `P2P state=connected`. Use USB for
+the router-free run. Do not publish unfiltered Wi-Fi/P2P dumps, which can contain
+network credentials.
