@@ -61,6 +61,10 @@ See nfc-testing.md for the protocol and physical-device checks.
 
 A successful create/join call does NOT mean the connection is established.
 Wait for status=connected in the event stream before using hostAddress.
+Creation and joining wait for discovery shutdown before issuing their native
+request. Action timeout returns to idle with an error instead of leaving an
+unmonitored connecting state. A formed host group may obtain its missing IP from
+its actual P2P interface, never from an infrastructure/Internet network.
 Messaging sockets remain in the shared Dart layer, outside this native API.
 
 ## State snapshots

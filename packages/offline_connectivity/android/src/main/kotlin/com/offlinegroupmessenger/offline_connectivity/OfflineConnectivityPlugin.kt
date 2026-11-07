@@ -13,6 +13,9 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
+import java.net.Inet4Address
+import java.net.NetworkInterface
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.embedding.engine.plugins.activity.ActivityAware
 import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
@@ -41,6 +44,7 @@ class OfflineConnectivityPlugin : FlutterPlugin, ActivityAware,
     private var afterPermission: (() -> Unit)? = null
     private var operationTimeout: Runnable? = null
     private var revision = 0
+    private var connectionReadRevision = 0
     private var status = "idle"
     private var wifiEnabled = false
     private var isHost = false
@@ -213,19 +217,50 @@ class OfflineConnectivityPlugin : FlutterPlugin, ActivityAware,
         if (!attached || !permitted() || status == "disconnecting") return
         val ch = channel ?: return
         val token = revision
+        val readToken = ++connectionReadRevision
         guarded {
             manager?.requestConnectionInfo(ch) { info ->
-                if (!attached || token != revision || status == "disconnecting") return@requestConnectionInfo
+                if (!attached || token != revision || readToken != connectionReadRevision || status == "disconnecting") return@requestConnectionInfo
+                val previousStatus = status
                 if (info.groupFormed) {
                     isHost = info.isGroupOwner
                     // Android supplies the real address; never assume a P2P subnet.
                     hostAddress = info.groupOwnerAddress?.hostAddress
                     status = if (hostAddress != null) "connected" else "connecting"
                     clearError()
+                    if (isHost && hostAddress == null) {
+                        readHostInterface(ch, token, readToken)
+                    }
                 } else if (status == "connected") {
                     clearConnection("idle")
                 }
+                if (status != previousStatus) Log.d("OfflineConnection", "P2P state=$status owner=$isHost addressReady=${hostAddress != null}")
                 emit()
+            }
+        }
+    }
+
+    private fun readHostInterface(ch: WifiP2pManager.Channel, token: Int, readToken: Int) {
+        guarded {
+            manager?.requestGroupInfo(ch) { group ->
+                if (!attached || token != revision || readToken != connectionReadRevision ||
+                    status != "connecting" || !isHost || group?.isGroupOwner != true) return@requestGroupInfo
+                // Only the actual P2P interface can supply a missing GO address.
+                // Never use infrastructure Wi-Fi, mobile data, DNS or a guessed subnet.
+                val interfaceName = group.`interface` ?: return@requestGroupInfo
+                val address = try {
+                    NetworkInterface.getByName(interfaceName)?.inetAddresses?.toList()
+                        ?.filterIsInstance<Inet4Address>()
+                        ?.firstOrNull { !it.isLoopbackAddress && !it.isAnyLocalAddress }
+                        ?.hostAddress
+                } catch (_: Exception) { null }
+                if (address != null) {
+                    hostAddress = address
+                    status = "connected"
+                    clearError()
+                    Log.d("OfflineConnection", "Host address obtained from P2P interface")
+                    emit()
+                }
             }
         }
     }
@@ -347,39 +382,62 @@ class OfflineConnectivityPlugin : FlutterPlugin, ActivityAware,
         if (ch == null || mgr == null) { fail("unavailable", "Wi-Fi Direct service is unavailable."); return }
         wifiEnabled = (context.getSystemService(Context.WIFI_SERVICE) as WifiManager).isWifiEnabled
         if (!wifiEnabled && method != "disconnect") { fail("wifi_disabled", "Enable Wi-Fi and try again."); return }
-        if (method == "discoverPeers") {
+        if (method != "disconnect") {
             val location = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
             val enabled = if (Build.VERSION.SDK_INT >= 28) location.isLocationEnabled
                 else location.isProviderEnabled(LocationManager.GPS_PROVIDER) ||
                     location.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
-            if (!enabled) { fail("location_disabled", "Enable Location in system settings for nearby-device discovery."); return }
+            if (!enabled) { fail("location_disabled", "Enable Location in system settings for Wi-Fi Direct. Internet and a GPS fix are not required."); return }
         }
         val token = ++revision
-        if (method != "discoverPeers") discovery?.stopSearch()
         operationTimeout = Runnable {
             if (token == revision && pending != null) {
+                // A real group can arrive before an OEM delivers its action callback.
+                if (method in listOf("createGroup", "joinGroup", "joinInvitation") && status == "connected") {
+                    finish(); return@Runnable
+                }
                 revision++ // Ignore late callbacks belonging to this timed-out request.
-                val previous = status
                 if (method == "discoverPeers") discovery?.stopSearch()
+                else try { mgr.cancelConnect(ch, null) } catch (_: RuntimeException) {}
+                Log.d("OfflineConnection", "$method action timed out")
+                clearConnection("idle")
                 fail("timeout", "Android did not answer. Disconnect and try again.")
-                if (previous in listOf("connecting", "disconnecting")) { status = previous; emit() }
             }
         }.also { handler.postDelayed(it, if (method == "discoverPeers") 55_000 else 15_000) }
         val listener = object : WifiP2pManager.ActionListener {
             override fun onSuccess() {
                 if (!attached || token != revision) return
+                Log.d("OfflineConnection", "$method accepted; waiting for authoritative group state")
                 finish()
                 if (method == "discoverPeers") readPeers() else readConnection()
                 emit()
             }
             override fun onFailure(reason: Int) {
-                if (attached && token == revision) fail(reasonCode(reason), reasonMessage(reason))
+                if (attached && token == revision) {
+                    Log.d("OfflineConnection", "$method failed: $reason")
+                    fail(reasonCode(reason), reasonMessage(reason))
+                }
             }
         }
-        when (method) {
+        fun issueAction() {
+          if (!attached || token != revision) return
+          guarded { when (method) {
             "createGroup" -> {
                 clearConnection("connecting"); emit()
-                mgr.createGroup(ch, listener)
+                if (Build.VERSION.SDK_INT >= 29) {
+                    val credentials = OfflineGroupCredentials.create()
+                    val config = WifiP2pConfig.Builder()
+                        .setNetworkName(credentials.networkName)
+                        .setPassphrase(credentials.passphrase)
+                        .setGroupOperatingBand(WifiP2pConfig.GROUP_OWNER_BAND_2GHZ)
+                        .enablePersistentMode(false)
+                        .build()
+                    Log.d("OfflineConnection", "Creating local 2.4 GHz group")
+                    mgr.createGroup(ch, config, listener)
+                } else {
+                    Log.d("OfflineConnection", "Creating local group with legacy Android API")
+                    mgr.createGroup(ch, listener)
+                }
                 watchConnection(token)
             }
             "discoverPeers" -> {
@@ -436,12 +494,12 @@ class OfflineConnectivityPlugin : FlutterPlugin, ActivityAware,
                         })
                     }
                 }
-                mgr.stopPeerDiscovery(ch, object : WifiP2pManager.ActionListener {
-                    override fun onSuccess() { cancel() }
-                    override fun onFailure(reason: Int) { cancel() }
-                })
+                cancel()
             }
+          } }
         }
+        if (method == "discoverPeers") issueAction()
+        else discovery?.stopSearch { issueAction() } ?: issueAction()
     }
 
     private fun getInvitation(result: MethodChannel.Result, viaNfc: Boolean = false) {

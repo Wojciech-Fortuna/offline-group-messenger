@@ -6,17 +6,18 @@ Location permissions and Location mode. Android's INTERNET permission authorizes
 local sockets as well; it does not imply an Internet requirement.
 
 Observed hardware report: MI 9 discovers OPPO but remains Connecting; host creation
-appears to work only while associated with Internet Wi-Fi. The phones are currently
-unavailable through ADB, so the hardware cause is not yet established.
+appears to work only while associated with Internet Wi-Fi. The hardware cause is
+not yet established; wireless ADB cannot verify standalone operation after its
+infrastructure network is disconnected.
 
-Confirmed code issues to address:
+Code changes implemented; physical acceptance remains pending:
 
-- Action timeout restores Connecting after invalidating the callback/watch token,
-  leaving a state that can no longer progress or time out. Timeouts must return a
-  recoverable state and cancel pending negotiation, without restoring Connecting.
-- Discovery shutdown and connect/create are issued without awaiting shutdown.
-  Serialize them and invalidate queued discovery callbacks before starting the
-  next Wi-Fi Direct action.
+- Action timeout previously restored Connecting after invalidating the callback/
+  watch token, leaving a state that could no longer progress or time out. It now
+  returns a recoverable state and cancels pending negotiation. A group already
+  confirmed connected is preserved if the action callback alone is missing.
+- Discovery shutdown now completes before connect/create is issued. Queued
+  discovery callbacks are invalidated before starting the next Wi-Fi Direct action.
 - Group setup must use authoritative P2P state and the actual group interface;
   never an infrastructure Wi-Fi IP or an Internet-connectivity check. If a formed
   host group temporarily omits its IP, query its group interface for a local IPv4.
@@ -41,4 +42,17 @@ discovery. Continue fetching invitations from the actual created group.
 
 Wireless ADB normally relies on the infrastructure network used by the development
 computer. Losing that debugging connection is not itself proof that offline chat
-failed. Physical offline acceptance remains pending until checked over USB.
+failed. Full physical offline acceptance remains pending until checked over USB.
+
+## Validation of the implementation
+
+Flutter analysis, all 59 application tests and all 10 Android unit tests passed;
+the debug APK built successfully and was installed on MI 9, OPPO and Huawei.
+These checks do not replace the physical offline matrix above.
+
+USB check on Huawei ANE-LX1: Wi-Fi enabled, infrastructure Wi-Fi DISCONNECTED,
+both SIM slots ABSENT. Creating a public group succeeded: Android reported
+GroupCreatedState with groupFormed=true/isGroupOwner=true and the app exposed
+Open chat. Infrastructure Wi-Fi remained disconnected after creation. This
+verifies standalone hosting on this older Android device; Android 10+ standalone
+hosting and MI 9/OPPO joining are still pending physical acceptance.

@@ -148,7 +148,7 @@ internal class PublicGroupDiscovery(
 
     private fun publishPeers() = onPeers(peers.values.map { it.first }.sortedBy { it["name"].toString() })
 
-    fun stopSearch() {
+    fun stopSearch(onStopped: (() -> Unit)? = null) {
         val wasScanning = scanning
         scanning = false
         scanRevision++
@@ -158,11 +158,14 @@ internal class PublicGroupDiscovery(
         if (ch != null && req != null) {
             try { manager.removeServiceRequest(ch, req, null) } catch (_: RuntimeException) {}
         }
-        if (ch != null && wasScanning) {
-            try { manager.stopPeerDiscovery(ch, null) } catch (_: RuntimeException) {}
-        }
         peers.clear()
         onPeers(emptyList())
+        if (ch != null && (wasScanning || onStopped != null)) {
+            try { manager.stopPeerDiscovery(ch, object : WifiP2pManager.ActionListener {
+                override fun onSuccess() { onStopped?.invoke() }
+                override fun onFailure(reason: Int) { onStopped?.invoke() }
+            }) } catch (_: RuntimeException) { onStopped?.invoke() }
+        } else onStopped?.invoke()
     }
 
     fun isSearching() = scanning

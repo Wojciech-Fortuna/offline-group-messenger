@@ -3,6 +3,11 @@
 Fully stop and rerun the app after updating Kotlin or manifest permissions.
 Flutter hot reload alone does not rebuild the native plugin.
 
+Run the standalone offline checks in [offline-connection-recovery.md](offline-connection-recovery.md)
+over USB: Wi-Fi radio on, no router association and mobile data off. Wireless ADB
+loss is separate from application connectivity. Android 10+ hosting requests a
+fresh non-persistent 2.4 GHz group; older Android uses its default group API.
+
 ## Two-phone smoke test
 
 1. Install the new debug build on two physical Android phones. Enable Wi-Fi and
