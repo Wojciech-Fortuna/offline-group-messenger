@@ -1,7 +1,9 @@
 # NFC contacts and offline voice calls
 
 Status: C0 recovery hardening implemented; physical connection acceptance remains
-open. Contacts and calling are not implemented. Android first.
+open. C1 is being implemented as an isolated [transport lab](transport-lab.md),
+split into BLE/GATT (C1a) and local audio (C1b) commits. Contacts and production
+calling are not implemented. Android first.
 Each milestone gets its own commit without a co-author trailer. This milestone
 records the design and acceptance gates; feature implementation follows later.
 
