@@ -68,6 +68,13 @@ https://docs.flutter.dev/platform-integration/platform-channels
 
 ## Next implementation steps
 
+Proposed contacts/calling extension: [contacts-and-calls.md](contacts-and-calls.md).
+NFC establishes durable authenticated contacts; existing local connections carry
+in-group call signaling, with BLE proposed for disconnected-contact invitations.
+Accepted standalone calls create a temporary Wi-Fi Direct link for WebRTC audio.
+Contacts, group membership, Wi-Fi ownership and call consent remain separate.
+This is not implemented; radio/media feasibility and identity design come first.
+
 The canonical sequence is in [roadmap.md](roadmap.md). Session recovery is
 implemented with automated coverage. Host acceptance remains distinct from
 recipient delivery or read receipts. Protocol v3 adds identity-bound client
@@ -75,8 +82,9 @@ acknowledgements and bounded delivery snapshots sent only to the message sender.
 See delivery-receipts.md for three-stage checks and resume behavior. State uses memory only.
 
 Run the two/three-phone Wi-Fi Direct, chat and NFC checks and record device/OS
-versions and outcomes. No completed hardware-validation results are recorded yet.
-Automated recovery tests can be implemented here; they do not satisfy that gate.
+versions and outcomes. Partial results are recorded in offline-connection-recovery.md
+and discovery-join-recovery.md; the complete interoperability gate remains open.
+Automated recovery tests do not satisfy that hardware gate.
 
 Authenticated encryption, durable storage and background operation follow.
 App-specific public discovery and NFC-only private admission are implemented;

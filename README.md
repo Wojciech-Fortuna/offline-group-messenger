@@ -94,8 +94,10 @@ cannot be checked on Windows.
 - App widget tests and connectivity contract tests cover connection states,
   peer selection, permission errors, method arguments and event subscriptions.
 - Android debug APK compilation passed.
-- Actual discovery and group formation require the two-phone hardware checks in
-  [Wi-Fi Direct testing](docs/wifi-direct-testing.md); these have not been run here.
+- Partial hardware checks are recorded in [offline setup](docs/offline-connection-recovery.md)
+  and [discovery joining](docs/discovery-join-recovery.md). Huawei standalone hosting
+  passed; Huawei-to-OPPO negotiation still failed after connect was accepted. The
+  full [Wi-Fi Direct matrix](docs/wifi-direct-testing.md) remains outstanding.
 - iOS compilation requires macOS and Xcode and has not been run.
 
 ## Design and implementation plan
@@ -132,9 +134,12 @@ See [delivery receipts](docs/delivery-receipts.md). Storage is not durable.
 
 Session recovery is implemented and covered by automated tests. Run the
 two/three-phone [chat checks](docs/chat-protocol.md) before declaring it
-hardware-validated. Next implementation: authenticated encryption, followed by
-durable storage and background operation. See [the roadmap](docs/roadmap.md)
-for acceptance criteria and remaining milestones.
+hardware-validated. Next: finish connection reliability and validate the radio/audio
+feasibility for [NFC contacts and offline calls](docs/contacts-and-calls.md).
+The proposed sequence then adds authenticated identities and durable contacts,
+normal one-to-one calls, background calling and group push-to-talk. Calling is
+not implemented. Durable chat history remains a separate milestone. See
+[the roadmap](docs/roadmap.md) for acceptance criteria and remaining work.
 
 ## Original project concept
 

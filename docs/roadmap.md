@@ -3,6 +3,22 @@
 This is the canonical milestone order. Keep README, architecture, protocol and UI
 notes consistent with implemented behavior. Commit each milestone separately.
 
+## Requested contacts and calling track (planned)
+
+The detailed plan is [contacts-and-calls.md](contacts-and-calls.md). The next order
+for this track is C0 connection reliability, C1 local BLE/audio feasibility, C2
+authenticated identity plus durable NFC contacts, C3 full-duplex calls inside a
+group, C4 BLE call invitations plus temporary Wi-Fi Direct setup, C5 background
+calling, and C6 group push-to-talk. Each milestone is a separate commit without
+co-author trailers. This is a documentation plan; calling is not implemented.
+
+This expands the security, storage and background milestones below: contact
+authentication and persistence precede calling, while full chat-history storage
+remains separately scoped. NFC pairing never grants membership of an existing
+private group. Bluetooth is proposed for ringing before a Wi-Fi connection exists;
+audio remains local Wi-Fi Direct. First resolve the remaining group negotiation
+failure recorded in [discovery-join-recovery.md](discovery-join-recovery.md).
+
 ## 1. Align documentation (complete)
 
 Record the existing Android Wi-Fi Direct, QR/NFC invitation and TCP chat features;
