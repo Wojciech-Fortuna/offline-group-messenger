@@ -26,3 +26,8 @@ BLE roles in both directions, Wi-Fi coexistence, ten-minute full-duplex audio,
 client-client reachability, stats and measured latency. Record actual outcomes;
 unit tests, an echo or a successful build do not prove audio quality/background
 reachability. RTT/jitter stats are not a one-way acoustic latency measurement.
+
+C1a software validation: isolated lab analysis and its explicit-selection/lifecycle
+widget test pass; Android debug APK builds. Package ID:
+`com.offlinegroupmessenger.offline_transport_lab`. BLE hardware acceptance is
+recorded separately from this build result.
