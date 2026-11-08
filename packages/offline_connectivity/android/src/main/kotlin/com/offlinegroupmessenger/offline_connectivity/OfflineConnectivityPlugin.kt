@@ -92,12 +92,12 @@ class OfflineConnectivityPlugin : FlutterPlugin, ActivityAware,
     }
     private val lifecycle = object : Application.ActivityLifecycleCallbacks {
         override fun onActivityResumed(activity: Activity) {
-            if (activity === activityBinding?.activity) { nfc.resume(); refresh() }
+            if (activity === activityBinding?.activity) { nfc.resume(); contacts.nfc.resume(); refresh() }
         }
         override fun onActivityCreated(activity: Activity, state: Bundle?) {}
         override fun onActivityStarted(activity: Activity) {}
         override fun onActivityPaused(activity: Activity) {
-            if (activity === activityBinding?.activity) nfc.pause()
+            if (activity === activityBinding?.activity) { nfc.pause(); contacts.nfc.pause() }
         }
         override fun onActivityStopped(activity: Activity) {}
         override fun onActivitySaveInstanceState(activity: Activity, state: Bundle) {}
@@ -107,7 +107,7 @@ class OfflineConnectivityPlugin : FlutterPlugin, ActivityAware,
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         context = binding.applicationContext
         nfc = NfcInvitationController(context)
-        contacts = ContactsBridge(context, binding.binaryMessenger)
+        contacts = ContactsBridge(context, binding.binaryMessenger) { nfc.cancel() }
         attached = true
         methods = MethodChannel(binding.binaryMessenger, "com.offlinegroupmessenger/connectivity")
             .also { it.setMethodCallHandler(this) }
@@ -273,6 +273,7 @@ class OfflineConnectivityPlugin : FlutterPlugin, ActivityAware,
     }
 
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
+        if (call.method in listOf("startNfcSharing", "readNfcInvitation")) contacts.nfc.cancel()
         when (call.method) {
             "getCapabilities" -> result.success(mapOf(
                 "platform" to "android", "wifiDirectSupported" to supported,
@@ -632,6 +633,7 @@ class OfflineConnectivityPlugin : FlutterPlugin, ActivityAware,
     override fun onAttachedToActivity(binding: ActivityPluginBinding) {
         activityBinding = binding
         nfc.attach(binding.activity)
+        contacts.nfc.attach(binding.activity)
         binding.addRequestPermissionsResultListener(this)
         refresh()
     }
@@ -640,6 +642,7 @@ class OfflineConnectivityPlugin : FlutterPlugin, ActivityAware,
     override fun onDetachedFromActivity() = detachActivity()
     private fun detachActivity() {
         nfc.detach()
+        contacts.nfc.detach()
         activityBinding?.removeRequestPermissionsResultListener(this)
         activityBinding = null
         if (afterPermission != null) fail("activity_detached", "Permission request interrupted. Please retry.")

@@ -94,3 +94,23 @@ All native unit tests and Flutter analysis pass, including new signature tamperi
 wrong-key, restart, transcript, block/delete and failed-write tests. Device-backed
 Keystore/file corruption and NFC acceptance still require physical validation.
 No contact UI or production call feature is included in this storage milestone.
+
+## C2c implementation and manual check
+
+Implemented next: a distinct chunked NFC contact service, mutual transcript proofs,
+comparison/confirmation UI and signed approval receipts. Contacts is accessible
+from the home toolbar. Rename, block, delete and explicit identity reset are present.
+Pairing is foreground-only and expires after 60 seconds. Switching to invitation
+NFC cancels contact NFC and vice versa. Private invitation behavior stays separate.
+
+Native unit tests pass for mutual approval, fresh-session replay rejection,
+interrupted/repeated enrollment and APDU bounds. All 61 app tests and analysis pass,
+including explicit confirmation UI, cleanup and existing group invitation checks.
+
+Device procedure: open Contacts > Add contact by NFC on both phones, enter names,
+choose Receive on one and Read on the other. Hold NFC areas together, compare the
+entire code, then confirm on both while keeping the link. Both must show saved and
+verified. Restart both apps and inspect the saved contacts. Repeat with an interrupted
+tap, duplicate pairing and a blocked contact; regress private group invitations.
+No phones were connected during this software check, so hardware NFC/Keystore
+acceptance remains pending. Calls are not exposed by this milestone.

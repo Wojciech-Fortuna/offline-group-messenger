@@ -8,6 +8,7 @@ import '../invitations/nfc_invitation_screen.dart';
 import '../../core/messaging/tcp_message_transport.dart';
 import '../../core/messaging/chat_session_controller.dart';
 import '../chat/chat_screen.dart';
+import '../contacts/contacts_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key, required this.connectivity, this.chat});
@@ -286,7 +287,18 @@ class _HomeScreenState extends State<HomeScreen> {
       GroupStatus.unavailable => 'Wi-Fi Direct unavailable',
     };
     return Scaffold(
-      appBar: AppBar(title: const Text('Offline Group Messenger')),
+      appBar: AppBar(
+        title: const Text('Offline Group Messenger'),
+        actions: [
+          IconButton(
+            tooltip: 'Contacts',
+            icon: const Icon(Icons.contacts),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => const ContactsScreen()),
+            ),
+          ),
+        ],
+      ),
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
