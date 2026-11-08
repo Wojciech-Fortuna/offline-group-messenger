@@ -89,3 +89,10 @@ Validate analysis, regression tests and Android build, then reinstall on both
 phones and retry. A successful route and increasing bidirectional media counters
 are required before claiming this fixes physical audio. Ten-minute listening,
 fully offline operation and the remaining C1 hardware matrix remain open.
+
+Repair software validation: the P2P monitor opt-in is now applied before Flutter
+plugin registration, using the same native WebRTC 150.7871.04 artifact as the
+pinned plugin. Route counters/states survive teardown and appear in the screen,
+samples and sanitized export. All 14 lab tests, repository analysis and Android
+debug build pass, including timeout diagnostic retention and stale-callback
+rejection. Physical retry results must be recorded separately below.

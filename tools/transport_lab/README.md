@@ -48,3 +48,11 @@ SDP candidates are stripped so they cannot bypass filtering. Test on other subne
 ranges as well. Exported stats omit addresses, SDP, credentials and recorded audio.
 Signaling identities are temporary socket IDs and unauthenticated: this is a
 feasibility tool, not private contact calling. NFC pairing is a later milestone.
+
+Android enables WebRTC's Wi-Fi Direct network monitor before plugin registration.
+The app's native WebRTC dependency must match the version used by flutter_webrtc.
+After a timeout, **Route diagnostics** remains visible and is included in the
+sanitized export. `localP2pCandidates: 0` means no usable local P2P candidate was
+gathered; `remoteP2pCandidates: 0` means none arrived from the selected peer.
+Nonzero counts on both sides do not by themselves prove successful audio: check
+the connection state and increasing sent/received byte counters, then listen.

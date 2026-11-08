@@ -56,6 +56,8 @@ class AudioLab extends ChangeNotifier {
   Timer? _deadline;
   DateTime? _connectedAt;
   final samples = <Map<String, dynamic>>[];
+  // Sanitized counters survive cleanup; never include SDP, addresses or audio.
+  final diagnostics = <String, dynamic>{};
   bool get micEnabled => _microphone != null;
   bool get hasCall => _call != null;
   bool get capturing => _capturing;
@@ -180,10 +182,27 @@ class AudioLab extends ChangeNotifier {
     }
     _peer = peer;
     _call = call;
+    diagnostics
+      ..clear()
+      ..addAll({
+        'localP2pCandidates': 0,
+        'localCandidatesRejected': 0,
+        'remoteP2pCandidates': 0,
+        'remoteCandidatesRejected': 0,
+        'remoteDescriptionSet': false,
+        'gathering': 'new',
+        'ice': 'new',
+        'connection': 'new',
+      });
     final revision = ++_mediaRevision;
     _deadline = Timer(const Duration(seconds: 25), () {
       if (revision == _mediaRevision) {
-        unawaited(_failed('No local media route formed within 25 seconds'));
+        final detail = diagnostics['localP2pCandidates'] == 0
+            ? 'WebRTC found no local Wi-Fi Direct candidate'
+            : diagnostics['remoteP2pCandidates'] == 0
+            ? 'No Wi-Fi Direct candidate received from the other phone'
+            : 'Wi-Fi Direct candidates exchanged but connectivity failed';
+        unawaited(_failed('No local media route within 25 seconds. $detail.'));
       }
     });
     final pc = await _native(
@@ -210,15 +229,31 @@ class AudioLab extends ChangeNotifier {
         candidate.candidate!,
         localCandidate: true,
       )) {
+        diagnostics['localP2pCandidates']++;
         if (_localDescriptionSent) {
           _sendIce(candidate);
         } else if (_localIce.length < 64) {
           _localIce.add(candidate);
         }
+      } else {
+        diagnostics['localCandidatesRejected']++;
       }
+      _changed();
+    };
+    pc.onIceGatheringState = (value) {
+      if (revision != _mediaRevision) return;
+      diagnostics['gathering'] = value.name;
+      _changed();
+    };
+    pc.onIceConnectionState = (value) {
+      if (revision != _mediaRevision) return;
+      diagnostics['ice'] = value.name;
+      _changed();
     };
     pc.onConnectionState = (value) {
       if (revision != _mediaRevision) return;
+      diagnostics['connection'] = value.name;
+      _changed();
       if (value == RTCPeerConnectionState.RTCPeerConnectionStateConnected) {
         _deadline?.cancel();
         _connectedAt ??= DateTime.now();
@@ -319,6 +354,7 @@ class AudioLab extends ChangeNotifier {
       );
       if (_call != call) return;
       _remoteReady = true;
+      diagnostics['remoteDescriptionSet'] = true;
       final answer = await _native(pc.createAnswer());
       if (_call != call) return;
       await _native(pc.setLocalDescription(answer));
@@ -340,6 +376,7 @@ class AudioLab extends ChangeNotifier {
         );
         if (_call != call) return;
         _remoteReady = true;
+        diagnostics['remoteDescriptionSet'] = true;
         final candidates = List<RTCIceCandidate>.of(_pendingIce);
         _pendingIce.clear();
         for (final candidate in candidates) {
@@ -348,7 +385,13 @@ class AudioLab extends ChangeNotifier {
         }
       case 'ice':
         final raw = message['candidate'] as String;
-        if (!network!.acceptsCandidate(raw, localCandidate: false)) return;
+        if (!network!.acceptsCandidate(raw, localCandidate: false)) {
+          diagnostics['remoteCandidatesRejected']++;
+          _changed();
+          return;
+        }
+        diagnostics['remoteP2pCandidates']++;
+        _changed();
         final candidate = RTCIceCandidate(
           raw,
           message['mid'] as String?,
@@ -375,6 +418,7 @@ class AudioLab extends ChangeNotifier {
       final stats = await _native(pc.getStats());
       if (revision != _mediaRevision) return;
       final sample = <String, dynamic>{
+        ...diagnostics,
         'seconds': _connectedAt == null
             ? 0
             : DateTime.now().difference(_connectedAt!).inSeconds,

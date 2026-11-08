@@ -42,3 +42,8 @@ android {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    // Match flutter_webrtc 1.6.3: exposes the P2P network-monitor opt-in to Kotlin.
+    implementation("io.github.webrtc-sdk:android:150.7871.04")
+}

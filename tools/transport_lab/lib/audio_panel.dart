@@ -112,18 +112,24 @@ class _AudioPanelState extends State<AudioPanel> with WidgetsBindingObserver {
           ),
         ],
       ),
+      if (lab.diagnostics.isNotEmpty)
+        Text('Route diagnostics: ${jsonEncode(lab.diagnostics)}'),
       if (lab.samples.isNotEmpty)
         Text('Latest stats: ${jsonEncode(lab.samples.last)}'),
       const Text(
         'Stats contain counters, jitter and RTT, not a one-way audio latency measurement.',
       ),
       TextButton(
-        onPressed: lab.samples.isEmpty
+        onPressed: lab.samples.isEmpty && lab.diagnostics.isEmpty
             ? null
             : () async {
                 await Clipboard.setData(
                   ClipboardData(
-                    text: jsonEncode({'lab': 1, 'samples': lab.samples}),
+                    text: jsonEncode({
+                      'lab': 1,
+                      'route': lab.diagnostics,
+                      'samples': lab.samples,
+                    }),
                   ),
                 );
               },

@@ -6,6 +6,7 @@ import android.os.Build
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import org.webrtc.NetworkMonitorAutoDetect
 
 class MainActivity : FlutterActivity() {
     private lateinit var ble: BleLab
@@ -14,6 +15,9 @@ class MainActivity : FlutterActivity() {
     private var afterPermission: (() -> Unit)? = null
 
     override fun configureFlutterEngine(engine: FlutterEngine) {
+        // P2P networks are absent from WebRTC's default Android network monitor.
+        // Opt in before plugin registration / the first PeerConnectionFactory.
+        NetworkMonitorAutoDetect.setIncludeWifiDirect(true)
         super.configureFlutterEngine(engine)
         ble = BleLab(this)
         network = P2pObserver(this)

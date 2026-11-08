@@ -23,6 +23,10 @@ class PeerFake extends Fake implements RTCPeerConnection {
   @override
   Function(RTCPeerConnectionState)? onConnectionState;
   @override
+  Function(RTCIceGatheringState)? onIceGatheringState;
+  @override
+  Function(RTCIceConnectionState)? onIceConnectionState;
+  @override
   Future<RTCRtpSender> addTrack(
     MediaStreamTrack track, [
     MediaStream? stream,
@@ -92,9 +96,53 @@ void main() {
       expect(signaling.sent.map((m) => m['type']), ['offer', 'ice']);
       expect(signaling.sent.first['sdp'], isNot(contains('candidate:')));
       expect(signaling.sent.last['candidate'], contains('192.168.88.7'));
+      expect(lab.diagnostics['localP2pCandidates'], 1);
+      expect(lab.diagnostics['localCandidatesRejected'], 1);
       await lab.disconnect();
       expect(peer.closed, isTrue);
       expect(peer.disposed, isTrue);
+      lab.dispose();
+      await tester.pump();
+    },
+  );
+
+  testWidgets(
+    'timeout preserves sanitized route diagnostics and releases audio',
+    (tester) async {
+      final peer = PeerFake();
+      final lab = AudioLab(
+        capture: () async => StreamFake(),
+        createPeer: (_) async => peer,
+        signaling: RecordingSignaling(),
+      );
+      prepare(lab);
+      await lab.enableMicrophone();
+      await lab.startAudio('2');
+      peer.onIceGatheringState?.call(
+        RTCIceGatheringState.RTCIceGatheringStateComplete,
+      );
+      await tester.pump(const Duration(seconds: 26));
+      expect(lab.hasCall, isFalse);
+      expect(lab.micEnabled, isFalse);
+      expect(peer.disposed, isTrue);
+      expect(lab.error, contains('No Wi-Fi Direct candidate received'));
+      expect(lab.diagnostics['localP2pCandidates'], 1);
+      expect(lab.diagnostics['gathering'], contains('Complete'));
+      final snapshot = Map<String, dynamic>.of(lab.diagnostics);
+      peer.onIceCandidate?.call(
+        RTCIceCandidate(
+          'candidate:1 1 udp 1 192.168.88.7 5000 typ host',
+          '0',
+          0,
+        ),
+      );
+      expect(lab.diagnostics, snapshot);
+      expect(lab.diagnostics.toString(), isNot(contains('192.168')));
+      await lab.enableMicrophone();
+      await lab.startAudio('2');
+      expect(lab.diagnostics['localP2pCandidates'], 1);
+      expect(lab.diagnostics['gathering'], 'new');
+      await lab.disconnect();
       lab.dispose();
       await tester.pump();
     },
