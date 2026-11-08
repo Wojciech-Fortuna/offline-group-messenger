@@ -1,11 +1,11 @@
 # NFC contacts and offline voice calls
 
 Status: C0 recovery hardening implemented; physical connection acceptance remains
-open. C1 is being implemented as an isolated [transport lab](transport-lab.md),
+open. C1 software is implemented as an isolated [transport lab](transport-lab.md),
 split into BLE/GATT (C1a) and local audio (C1b) commits. Contacts and production
-calling are not implemented. Android first.
-Each milestone gets its own commit without a co-author trailer. This milestone
-records the design and acceptance gates; feature implementation follows later.
+calling are not implemented. C1 physical radio/audio acceptance remains open. Android first.
+Each milestone gets its own commit without a co-author trailer. The acceptance
+gates below distinguish implemented software from demonstrated phone behavior.
 
 ## Product decisions
 
@@ -234,5 +234,6 @@ the OPPO group on the latest attempt. This supersedes the earlier failed attempt
 as the latest outcome for that direction; the historical failure is not an
 established current blocker. The exact successful build and radio conditions
 were not recorded. The complete C0 host-rotation/offline/rejection/timeout/retry
-matrix remains to be recorded, and C1 BLE/media feasibility remains unimplemented.
+matrix remains to be recorded. C1 BLE/media lab software is now implemented; its
+physical feasibility checks and results are tracked in transport-lab.md.
 Do not infer that contacts or calling are implemented from successful group joining.

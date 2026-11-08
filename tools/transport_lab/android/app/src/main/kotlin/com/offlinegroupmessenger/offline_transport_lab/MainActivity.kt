@@ -9,12 +9,14 @@ import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
     private lateinit var ble: BleLab
+    private lateinit var network: P2pObserver
     private var permissionResult: MethodChannel.Result? = null
     private var afterPermission: (() -> Unit)? = null
 
     override fun configureFlutterEngine(engine: FlutterEngine) {
         super.configureFlutterEngine(engine)
         ble = BleLab(this)
+        network = P2pObserver(this)
         MethodChannel(engine.dartExecutor.binaryMessenger, "offline_transport_lab").setMethodCallHandler { call, result ->
             fun run(block: () -> Unit) {
                 try { block() } catch (e: Exception) {
@@ -23,6 +25,17 @@ class MainActivity : FlutterActivity() {
                 }
             }
             when (call.method) {
+                "p2pNetwork" -> {
+                    val permissions = if (Build.VERSION.SDK_INT >= 33) arrayOf(Manifest.permission.NEARBY_WIFI_DEVICES)
+                        else arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION)
+                    val action = { network.read(result) }
+                    if (permissions.all { checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED }) action()
+                    else if (permissionResult != null) result.error("busy", "Permission request already open", null)
+                    else {
+                        permissionResult = result; afterPermission = action
+                        requestPermissions(permissions, 8120)
+                    }
+                }
                 "bleState" -> result.success(ble.snapshot())
                 "bleStop" -> { ble.stop(); result.success(null) }
                 "bleAdvertise", "bleScan", "bleProbe" -> {
@@ -63,6 +76,7 @@ class MainActivity : FlutterActivity() {
     override fun onPause() { if (::ble.isInitialized) ble.stop(); super.onPause() }
     override fun onDestroy() {
         if (::ble.isInitialized) ble.stop()
+        if (::network.isInitialized) network.close()
         afterPermission = null
         permissionResult?.error("closed", "Lab closed", null); permissionResult = null
         super.onDestroy()

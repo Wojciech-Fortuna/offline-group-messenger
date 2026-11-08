@@ -1,6 +1,6 @@
 # C1 transport feasibility lab
 
-Implementation scope: a separate Android application under `tools/transport_lab`,
+Implemented software: a separate Android application under `tools/transport_lab`,
 installed alongside Messenger. C0 hardening and the reported Huawei-to-OPPO join
 are already recorded. The complete C0 device matrix remains open; isolated C1
 experiments can proceed without claiming that gate is complete.
@@ -31,3 +31,39 @@ C1a software validation: isolated lab analysis and its explicit-selection/lifecy
 widget test pass; Android debug APK builds. Package ID:
 `com.offlinegroupmessenger.offline_transport_lab`. BLE hardware acceptance is
 recorded separately from this build result.
+
+## C1b implementation and validation
+
+Local signaling (TCP 45872) supports one host and two clients with socket-bound
+temporary IDs, directed messages, bounded frames, an initial handshake deadline,
+heartbeats and idle cleanup. It is unauthenticated lab signaling, not C2 identity.
+The host forwards signaling only; client-client media still needs physical proof.
+
+The audio adapter pins flutter_webrtc 1.6.3, uses no ICE servers, strips inline SDP
+candidates and exchanges only UDP host candidates on the actual P2P IPv4 interface
+and subnet. Microphone capture is explicit; late capture after cancellation is
+disposed. Setup timeout, hang-up, peer loss and backgrounding close audio. Mute,
+speaker routing and sanitized counter/jitter/RTT samples support manual testing.
+P2P observation never creates/removes the Messenger group.
+
+Automated lab checks cover framing, a three-peer local signaling relay and sender
+ID substitution, silent-server timeout, candidate/subnet filtering, inline SDP
+candidate removal, microphone cancellation/denial/cleanup and BLE UI lifecycle.
+Native WebRTC setup calls have eight-second deadlines inside an overall 25-second
+media setup deadline. Additional tests verify that late peer creation is disposed,
+cancelled offers are never transmitted and SDP precedes early trickle candidates.
+See [running the lab](../tools/transport_lab/README.md) for physical steps.
+
+Hardware status: Huawei (Android 9) accepted the BLE lab installation and launched;
+the first combined BLE/audio APK also installed successfully on 2026-11-07.
+MI 9 (Android 11) rejected installation with INSTALL_FAILED_USER_RESTRICTED.
+OPPO was not connected to ADB. Bluetooth was not fully enabled on the two available
+phones at inspection. No successful two-phone GATT echo or audio session has been
+measured in this milestone. The ten-minute audio, client-client media, BLE/Wi-Fi
+coexistence, latency and C0 host-rotation acceptance gates remain open. Do not
+advance the production contact/call feature based only on successful compilation.
+
+2026-11-08: no phones connected to ADB during the final software review. All 13 lab
+tests, repository analysis and the debug APK build pass. Latest cleanup/deadline
+changes still require installing the new build
+on the phones. The software milestone does not close the physical acceptance gate.

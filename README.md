@@ -141,6 +141,11 @@ normal one-to-one calls, background calling and group push-to-talk. Calling is
 not implemented. Durable chat history remains a separate milestone. See
 [the roadmap](docs/roadmap.md) for acceptance criteria and remaining work.
 
+The separate [Transport Lab](tools/transport_lab/README.md) implements foreground
+BLE/GATT and local WebRTC audio experiments for that feasibility milestone. It
+installs alongside Messenger and does not add production contacts or calling.
+Physical radio/audio acceptance remains open; see [lab status](docs/transport-lab.md).
+
 ## Original project concept
 
 The project aims to create an **offline group messaging app** that enables communication between multiple phones without Internet access or cellular coverage. Its main use case could be communication among a group of people on a plane, on a train, or in another location without network coverage.

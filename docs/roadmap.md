@@ -11,7 +11,9 @@ authenticated identity plus durable NFC contacts, C3 full-duplex calls inside a
 group, C4 BLE call invitations plus temporary Wi-Fi Direct setup, C5 background
 calling, and C6 group push-to-talk. Each milestone is a separate commit without
 co-author trailers. Calling is not implemented. C0 recovery hardening is
-implemented; its physical acceptance gate and C1-C6 remain open.
+implemented. C1 now has an isolated [BLE/audio lab](transport-lab.md) with automated
+checks; physical feasibility remains open. Production contacts and calling are
+not implemented, and the C0 physical matrix and C2-C6 remain open.
 
 This expands the security, storage and background milestones below: contact
 authentication and persistence precede calling, while full chat-history storage
@@ -20,7 +22,7 @@ private group. Bluetooth is proposed for ringing before a Wi-Fi connection exist
 audio remains local Wi-Fi Direct. Huawei joining OPPO is user-confirmed working
 on the latest attempt; the earlier failure in
 [discovery-join-recovery.md](discovery-join-recovery.md) is historical. Record the
-remaining C0 matrix separately from the unimplemented C1 BLE/media experiments.
+remaining C0 matrix separately from the C1 BLE/media experiment results.
 
 ## 1. Align documentation (complete)
 

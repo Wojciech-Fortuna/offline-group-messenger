@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'audio_panel.dart';
 
 const labChannel = MethodChannel('offline_transport_lab');
 void main() => runApp(const MaterialApp(home: TransportLab()));
@@ -83,7 +84,7 @@ class _TransportLabState extends State<TransportLab>
         ),
         const Text(
           'This separate app tests transport only. A probe is not a verified contact. '
-          'Keep both labs open; no personal data is exchanged.',
+          'Keep both labs open; BLE carries random test bytes only.',
         ),
         const SizedBox(height: 20),
         Text('BLE: ${_ble['state'] ?? 'Loading'}'),
@@ -113,6 +114,7 @@ class _TransportLabState extends State<TransportLab>
           onPressed: _busy ? null : () => _run('bleStop'),
           child: const Text('Stop BLE'),
         ),
+        const AudioPanel(),
       ],
     ),
   );
