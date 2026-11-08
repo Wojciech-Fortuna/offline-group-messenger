@@ -296,6 +296,11 @@ updated status; do not combine all contact/calling work into one final commit.
    unrelated group reports Busy. Then implement notifications/service ownership,
    lock-screen answering and OEM lifecycle tests. Group push-to-talk remains C6.
 
-Immediate next software milestone: **C2a authentication/storage design**, followed
-by C2b/C2c implementation. The current chat history remains a separate persistence
+Implementation progress: C2a design is in [contact-security.md](contact-security.md).
+C2b protected identity/storage and C2c contact/NFC screens are implemented with
+unit/widget checks; NFC hardware acceptance remains open. C3a extracts the proven
+P2P observer, candidate policy, media factory/capture/cleanup into `offline_audio`,
+shared by Messenger and the lab. A consent-controlled media session adds bounded
+setup and cancellation; the lab's unauthenticated signaling is not reused.
+The current chat history remains a separate persistence
 task. A working WebRTC audio path does not authenticate contacts or encrypt chat.

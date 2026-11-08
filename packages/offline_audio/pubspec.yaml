@@ -1,0 +1,16 @@
+name: offline_audio
+description: Local Wi-Fi Direct WebRTC audio adapter shared by Messenger and its lab.
+version: 0.1.0
+publish_to: none
+environment:
+  sdk: ^3.9.0
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_webrtc: 1.6.3
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: com.offlinegroupmessenger.offline_audio
+        pluginClass: OfflineAudioPlugin

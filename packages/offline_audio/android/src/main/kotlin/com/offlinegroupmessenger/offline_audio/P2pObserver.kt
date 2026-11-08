@@ -1,6 +1,6 @@
-package com.offlinegroupmessenger.offline_transport_lab
+package com.offlinegroupmessenger.offline_audio
 
-import android.app.Activity
+import android.content.Context
 import android.net.wifi.p2p.WifiP2pManager
 import android.os.Build
 import android.os.Handler
@@ -10,7 +10,7 @@ import java.net.Inet4Address
 import java.net.NetworkInterface
 
 /** Observes a group owned by Messenger. Never creates, joins or removes it. */
-internal class P2pObserver(private val activity: Activity) {
+class P2pObserver(private val activity: Context) {
     private val handler = Handler(Looper.getMainLooper())
     private val manager = activity.getSystemService(WifiP2pManager::class.java)
     private var channel: WifiP2pManager.Channel? = null
@@ -36,7 +36,7 @@ internal class P2pObserver(private val activity: Activity) {
             val ch = requireNotNull(channel)
             manager.requestConnectionInfo(ch) { info ->
                 if (token != revision) return@requestConnectionInfo
-                if (!info.groupFormed) { fail("Create/join a group in Messenger first, then open this lab"); return@requestConnectionInfo }
+                if (!info.groupFormed) { fail("Create/join a group in Messenger first, then retry the call"); return@requestConnectionInfo }
                 try { manager.requestGroupInfo(ch) { group ->
                     if (token != revision) return@requestGroupInfo
                     try {
@@ -58,7 +58,7 @@ internal class P2pObserver(private val activity: Activity) {
     }
 
     fun close() {
-        fail("Lab closed")
+        fail("Audio adapter closed")
         if (Build.VERSION.SDK_INT >= 27) channel?.close()
         channel = null
     }

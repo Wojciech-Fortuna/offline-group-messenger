@@ -8,6 +8,8 @@ dependencies:
   flutter:
     sdk: flutter
   flutter_webrtc: 1.6.3
+  offline_audio:
+    path: ../../packages/offline_audio
 dev_dependencies:
   flutter_test:
     sdk: flutter

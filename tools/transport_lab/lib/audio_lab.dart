@@ -4,6 +4,12 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
+import 'package:offline_audio/offline_audio.dart'
+    show
+        createLocalPeer,
+        openLocalMicrophone,
+        releaseMedia,
+        releaseLocalMicrophone;
 import 'local_signaling.dart';
 import 'p2p_candidates.dart';
 
@@ -13,20 +19,11 @@ class AudioLab extends ChangeNotifier {
     Future<MediaStream> Function()? capture,
     Future<RTCPeerConnection> Function(Map<String, dynamic>)? createPeer,
     LabSignaling? signaling,
-  }) : _capture = capture ?? _openMicrophone,
-       _createPeer = createPeer ?? createPeerConnection,
+  }) : _capture = capture ?? openLocalMicrophone,
+       _createPeer = createPeer ?? createLocalPeer,
        _signal = signaling ?? LabSignaling();
   final Future<MediaStream> Function() _capture;
   final Future<RTCPeerConnection> Function(Map<String, dynamic>) _createPeer;
-  static Future<MediaStream> _openMicrophone() =>
-      navigator.mediaDevices.getUserMedia({
-        'audio': {
-          'echoCancellation': true,
-          'noiseSuppression': true,
-          'autoGainControl': true,
-        },
-        'video': false,
-      });
   final LabSignaling _signal;
   LabRelay? _relay;
   StreamSubscription<Map<String, dynamic>>? _subscription;
@@ -62,20 +59,11 @@ class AudioLab extends ChangeNotifier {
   bool get hasCall => _call != null;
   bool get capturing => _capturing;
 
-  static Future<void> _release(Future<void> Function() action) async {
-    try {
-      await action().timeout(const Duration(seconds: 3));
-    } catch (_) {
-      /* Continue releasing the other native resources. */
-    }
-  }
+  static Future<void> _release(Future<void> Function() action) =>
+      releaseMedia(action);
 
-  static Future<void> _releaseStream(MediaStream stream) async {
-    for (final track in stream.getTracks()) {
-      await _release(track.stop);
-    }
-    await _release(stream.dispose);
-  }
+  static Future<void> _releaseStream(MediaStream stream) =>
+      releaseLocalMicrophone(stream);
 
   void _changed() {
     if (!_disposed) notifyListeners();

@@ -195,6 +195,13 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.16.0"
+  offline_audio:
+    dependency: "direct main"
+    description:
+      path: "../../packages/offline_audio"
+      relative: true
+    source: path
+    version: "0.1.0"
   package_config:
     dependency: transitive
     description:
