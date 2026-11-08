@@ -16,7 +16,10 @@ buildscript {
 apply plugin: "com.android.library"
 apply plugin: "kotlin-android"
 
-dependencies { testImplementation "junit:junit:4.13.2" }
+dependencies {
+    implementation "com.nimbusds:nimbus-jose-jwt:10.10"
+    testImplementation "junit:junit:4.13.2"
+}
 
 android {
     namespace = "com.offlinegroupmessenger.offline_connectivity"

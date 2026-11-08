@@ -83,3 +83,14 @@ and oversized APDUs, and cancellation. Check encrypted file round trips, corrupt
 and key-loss behavior on Android. On two phones verify both NFC roles, interrupted
 taps and process restart, and regress existing private group invitations. Software
 checks alone do not close NFC or C1 physical acceptance.
+
+## C2b implementation status
+
+Implemented: Nimbus ES256 identity adapter, native Android Keystore signing and
+AES-GCM storage keys, atomic encrypted no-backup contact store, serialized native
+bridge and typed Dart repository. Pending/approval state survives serialization;
+verified contacts are deduplicated and blocked contacts cannot be paired again.
+All native unit tests and Flutter analysis pass, including new signature tampering,
+wrong-key, restart, transcript, block/delete and failed-write tests. Device-backed
+Keystore/file corruption and NFC acceptance still require physical validation.
+No contact UI or production call feature is included in this storage milestone.

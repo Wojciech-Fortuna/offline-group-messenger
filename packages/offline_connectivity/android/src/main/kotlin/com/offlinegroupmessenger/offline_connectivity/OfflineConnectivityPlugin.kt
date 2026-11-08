@@ -28,6 +28,7 @@ class OfflineConnectivityPlugin : FlutterPlugin, ActivityAware,
 
     private lateinit var context: Context
     private lateinit var nfc: NfcInvitationController
+    private lateinit var contacts: ContactsBridge
     private var attached = false
     private var methods: MethodChannel? = null
     private var events: EventChannel? = null
@@ -106,6 +107,7 @@ class OfflineConnectivityPlugin : FlutterPlugin, ActivityAware,
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         context = binding.applicationContext
         nfc = NfcInvitationController(context)
+        contacts = ContactsBridge(context, binding.binaryMessenger)
         attached = true
         methods = MethodChannel(binding.binaryMessenger, "com.offlinegroupmessenger/connectivity")
             .also { it.setMethodCallHandler(this) }
@@ -649,6 +651,7 @@ class OfflineConnectivityPlugin : FlutterPlugin, ActivityAware,
         attached = false
         discovery?.close()
         nfc.dispose()
+        contacts.close()
         handler.removeCallbacksAndMessages(null)
         // Best effort cleanup; explicit disconnect is the reliable user-visible path.
         channel?.let { ch ->
