@@ -106,8 +106,9 @@ bytes sent, 121,541 received, zero reported packet loss, 5 ms RTT and 1 ms jitte
 These are separate-time samples, not synchronized end-to-end measurements.
 
 This confirms bidirectional media transport for the short OPPO-host/MI-9-client
-retry and resolves the observed no-route failure for that setup. Listening quality
-has not been confirmed by the user. Both phones also had infrastructure Wi-Fi
+retry and resolves the observed no-route failure for that setup. The user then
+confirmed that the call works audibly on the phones. This is a functional listening
+confirmation, not a measured latency or long-duration quality result. Both phones had infrastructure Wi-Fi
 enabled for wireless ADB; candidate filtering restricted the exchanged routes to
 P2P, but a router-free repeat, ten-minute stability and other topologies remain
 unverified. No claim of completed C1 hardware acceptance.

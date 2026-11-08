@@ -12,7 +12,8 @@ group, C4 BLE call invitations plus temporary Wi-Fi Direct setup, C5 background
 calling, and C6 group push-to-talk. Each milestone is a separate commit without
 co-author trailers. Calling is not implemented. C0 recovery hardening is
 implemented. C1 now has an isolated [BLE/audio lab](transport-lab.md) with automated
-checks; physical feasibility remains open. Production contacts and calling are
+checks. Short OPPO-host/MI-9-client audio and audible conversation are confirmed;
+longer/router-free and client-client tests remain open. Production contacts and calling are
 not implemented, and the C0 physical matrix and C2-C6 remain open.
 
 This expands the security, storage and background milestones below: contact
@@ -23,6 +24,13 @@ audio remains local Wi-Fi Direct. Huawei joining OPPO is user-confirmed working
 on the latest attempt; the earlier failure in
 [discovery-join-recovery.md](discovery-join-recovery.md) is historical. Record the
 remaining C0 matrix separately from the C1 BLE/media experiment results.
+
+Next software slice: C2a authentication/key-storage design, then protected identity
+storage and mutual NFC contacts (C2b/C2c). See the concrete
+[integration sequence](contacts-and-calls.md#integration-sequence-after-the-successful-audio-trial-2026-11-08).
+The first Messenger calls reuse an existing group in the foreground (C3); BLE
+ringing and call-owned group setup belong to C4. Continue the relevant physical
+checks alongside design work and commit every completed slice separately.
 
 ## 1. Align documentation (complete)
 

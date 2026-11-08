@@ -134,17 +134,19 @@ See [delivery receipts](docs/delivery-receipts.md). Storage is not durable.
 
 Session recovery is implemented and covered by automated tests. Run the
 two/three-phone [chat checks](docs/chat-protocol.md) before declaring it
-hardware-validated. Next: finish connection reliability and validate the radio/audio
-feasibility for [NFC contacts and offline calls](docs/contacts-and-calls.md).
+hardware-validated. Next: design authenticated identity/storage for
+[NFC contacts and offline calls](docs/contacts-and-calls.md), alongside the remaining
+connection and media hardware checks.
 The proposed sequence then adds authenticated identities and durable contacts,
-normal one-to-one calls, background calling and group push-to-talk. Calling is
-not implemented. Durable chat history remains a separate milestone. See
+normal one-to-one calls, background calling and group push-to-talk. Calling inside
+Messenger is not implemented. Durable chat history remains a separate milestone. See
 [the roadmap](docs/roadmap.md) for acceptance criteria and remaining work.
 
 The separate [Transport Lab](tools/transport_lab/README.md) implements foreground
 BLE/GATT and local WebRTC audio experiments for that feasibility milestone. It
 installs alongside Messenger and does not add production contacts or calling.
-Physical radio/audio acceptance remains open; see [lab status](docs/transport-lab.md).
+Short OPPO/MI-9 audio passed with user-confirmed audible conversation. Longer,
+router-free, client-client and BLE checks remain open; see [lab status](docs/transport-lab.md).
 
 ## Original project concept
 

@@ -3,7 +3,8 @@
 Status: C0 recovery hardening implemented; physical connection acceptance remains
 open. C1 software is implemented as an isolated [transport lab](transport-lab.md),
 split into BLE/GATT (C1a) and local audio (C1b) commits. Contacts and production
-calling are not implemented. C1 physical radio/audio acceptance remains open. Android first.
+calling are not implemented. Short OPPO-host/MI-9-client audio now passes, including
+user-confirmed audible conversation. The remaining C1 hardware matrix is open. Android first.
 Each milestone gets its own commit without a co-author trailer. The acceptance
 gates below distinguish implemented software from demonstrated phone behavior.
 
@@ -207,7 +208,7 @@ not rely solely on the current Flutter-engine/activity-scoped plugin state.
 | C5: background calling | Android Telecom/notifications, explicit availability mode, foreground-service lifecycle, audio routes | Lock-screen answer, screen-off call, interruptions, headset routes, Doze and OEM battery tests; accurately report unsupported/unreachable states |
 | C6: group walkie-talkie | Host-managed speaking lease and group-authorized encrypted audio distribution | One speaker at a time, deterministic contention, lease expiry on disconnect, correct membership/revocation, measured three-phone audio and bandwidth |
 
-C2 is the first user-facing feature after the radio/media gates; do not implement
+C2 is the first user-facing feature after the applicable radio/media gates; do not implement
 the contact list around MAC addresses while postponing identity design. Durable
 contacts are required here even though durable chat-history storage is a separate
 existing roadmap item. Background incoming calls must not be claimed at C3/C4.
@@ -237,3 +238,64 @@ were not recorded. The complete C0 host-rotation/offline/rejection/timeout/retry
 matrix remains to be recorded. C1 BLE/media lab software is now implemented; its
 physical feasibility checks and results are tracked in transport-lab.md.
 Do not infer that contacts or calling are implemented from successful group joining.
+
+## Integration sequence after the successful audio trial (2026-11-08)
+
+The user confirmed working audio after the P2P network-monitor fix. Keep the lab
+as a regression/diagnostic tool. The first Messenger calling release will support
+two NFC-paired contacts already in the same group, with both apps in the foreground.
+Independent calls, background ringing and group voice follow separately.
+
+Record docs before implementation and commit each completed slice below separately,
+without co-author trailers. Each implementation commit includes focused tests and
+updated status; do not combine all contact/calling work into one final commit.
+
+1. **Finish the relevant physical media checks (C1b).** Run ten minutes without a
+   router or mobile data, swap Xiaomi/OPPO host roles, and test two clients with a
+   third phone hosting. Record audible echo/delay, interruptions, bytes/loss and
+   hang-up/retry behavior. If client-client media fails, gate that topology in the
+   UI until an encrypted local relay is proven. BLE tests gate C4, not calls over
+   an existing group. C2 design work can proceed while hardware checks continue;
+   this does not mark the C0/C1 matrices complete.
+2. **Settle the authentication and storage design (C2a, docs commit).** Select an
+   established protocol/library, specify identity/key protection and backup/key-loss
+   behavior, and bind NFC verification to later call signaling and WebRTC
+   fingerprints. Define transcript/version/replay handling, interrupted-pairing
+   recovery and block/delete semantics before choosing the persistent schema.
+3. **Implement identity and protected storage (C2b).** Add installation identity,
+   contact repository and durable pending/verified pairing states under
+   `lib/core/identity/` and `lib/core/contacts/`, with the Android protection adapter.
+   Verify restart/crash recovery, key loss and deletion; names/MACs are not identities.
+4. **Add mutual NFC contacts and screens (C2c).** Extend `offline_connectivity`
+   with a separate versioned contact exchange. Add Contacts, Add by NFC, mutual
+   confirmation, rename/block/delete, and safe duplicate/interrupted tap recovery.
+   Preserve private-group NFC invitations as their own flow. No QR fallback.
+5. **Extract the proven media adapter (C3a).** Move reusable WebRTC setup, P2P-only
+   ICE filtering, diagnostics and cleanup into an isolated component consumed by
+   Messenger and the lab. Preserve the Android Wi-Fi Direct monitor opt-in and
+   empty ICE server list. Do not move the lab's unauthenticated relay or automatic
+   microphone-armed acceptance into production. Media has no ownership of chat
+   or of an existing P2P group.
+6. **Implement authenticated call control (C3b).** Add a separate controller in
+   `lib/core/calling/` and a versioned, directed signaling extension to the existing
+   transport. Authenticate the endpoints and negotiation even when the host
+   forwards messages. Map verified contacts to live peers through proof of identity.
+   Handle offer, ringing acknowledgment, answer, decline, busy, cancel, hang-up,
+   expiry and simultaneous calls; ignore stale/replayed events. Capability-negotiate
+   old builds so unsupported peers cannot appear callable. Audio never uses the
+   chat TCP queue, and ending a call never ends the group.
+7. **Integrate the calling UX (C3c).** Add Call for a verified, connected contact,
+   an incoming Answer/Decline screen, Connecting/Active states, duration, mute,
+   speaker and hang-up. Capture starts only after acceptance, with permission
+   handling and cleanup on denial/loss/backgrounding. Test chat during a call,
+   cancellation races and repeated calls on the same group. This is the first
+   user-facing Messenger call milestone; no Transport Lab steps are required.
+8. **Calls without an existing group (C4), then background operation (C5).** First
+   validate BLE/GATT in both roles and alongside Wi-Fi. Add private authenticated
+   invitations and temporary call-owned P2P setup only after Answer. A phone in an
+   unrelated group reports Busy. Then implement notifications/service ownership,
+   lock-screen answering and OEM lifecycle tests. Group push-to-talk remains C6.
+
+Immediate next software milestone: **C2a authentication/storage design**, followed
+by C2b/C2c implementation. The current chat history remains a separate persistence
+task. A working WebRTC audio path does not authenticate contacts or encrypt chat.
