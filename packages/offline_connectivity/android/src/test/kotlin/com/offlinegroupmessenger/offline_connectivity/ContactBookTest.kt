@@ -14,6 +14,19 @@ internal fun testCrypto(): ContactCrypto {
 }
 
 class ContactBookTest {
+    @Test fun callSignaturesRequirePinnedMutualTrustAndCorrectRecipient() {
+        val a = testCrypto(); val b = testCrypto(); val c = testCrypto()
+        val ab = ContactBook(a, null) {}; val bb = ContactBook(b, null) {}
+        assertThrows(Exception::class.java) { ab.signCall(mapOf("to" to b.id)) }
+        ab.pending(b.key, "Bob", "a".repeat(64)); ab.approve(b.id, "a".repeat(64)); ab.verified(b.id, "a".repeat(64))
+        bb.pending(a.key, "Alice", "b".repeat(64)); bb.approve(a.id, "b".repeat(64)); bb.verified(a.id, "b".repeat(64))
+        val token = ab.signCall(mapOf("to" to b.id, "kind" to "invite", "from" to c.id))
+        assertEquals(a.id, bb.verifyCall(token)["from"])
+        assertThrows(Exception::class.java) { bb.verifyCall(c.sign(mapOf("from" to a.id, "to" to b.id, "scope" to "ogm-call-v1"))) }
+        assertThrows(Exception::class.java) { bb.verifyCall(a.sign(mapOf("from" to a.id, "to" to c.id, "scope" to "ogm-call-v1"))) }
+        bb.block(a.id)
+        assertThrows(Exception::class.java) { bb.verifyCall(token) }
+    }
     @Test fun signaturesRejectSubstitutionTamperingAndAlgorithms() {
         val a = testCrypto(); val b = testCrypto()
         val signed = a.sign(mapOf("message" to "test"))

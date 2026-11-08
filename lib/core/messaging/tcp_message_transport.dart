@@ -14,14 +14,26 @@ enum ChatStatus { offline, connecting, ready }
 
 class _Identity {
   _Identity(this.participant);
-  final Participant participant;
+  Participant participant;
   int lastRequest = 0;
   bool revoked = false;
 }
 
 /// Foreground, in-memory protocol v3. Resume tokens are NOT authenticated identity.
 class TcpMessageTransport extends ChangeNotifier implements MessageTransport {
-  TcpMessageTransport({this.confirmationTimeout = const Duration(seconds: 6)});
+  TcpMessageTransport({
+    this.confirmationTimeout = const Duration(seconds: 6),
+    this.callCapable = true,
+  });
+  final bool callCapable;
+  bool _callRelay = false;
+  String? hostId;
+  bool get isHost => _isHost;
+  int get connectionRevision => _epoch;
+  bool get supportsCalls => callCapable && (_isHost || _callRelay);
+  final _callFrames = StreamController<Map<String, dynamic>>.broadcast();
+  Stream<Map<String, dynamic>> get callFrames => _callFrames.stream;
+  final _callRates = <String, ({int second, int count})>{};
 
   static const protocolVersion = 3;
   static const versionMismatchMessage =
@@ -151,9 +163,14 @@ class TcpMessageTransport extends ChangeNotifier implements MessageTransport {
       selfId = _id();
       _groupId = _id();
       _hostIdentity = _Identity(
-        Participant(id: selfId!, displayName: _name(displayName)),
+        Participant(
+          id: selfId!,
+          displayName: _name(displayName),
+          canCall: callCapable,
+        ),
       );
       _participants.add(_hostIdentity!.participant);
+      hostId = selfId;
       status = ChatStatus.ready;
       server.listen(
         (socket) {
@@ -204,6 +221,7 @@ class TcpMessageTransport extends ChangeNotifier implements MessageTransport {
         _write(socket, {
           'type': 'hello',
           'name': _name(displayName),
+          'calls': callCapable ? 1 : 0,
           'after': _sequence,
           if (_resumeToken != null) 'token': _resumeToken,
           if (_groupId != null) 'groupId': _groupId,
@@ -327,6 +345,15 @@ class TcpMessageTransport extends ChangeNotifier implements MessageTransport {
       final identity = _peers[socket];
       if (type == 'hello' && identity == null) {
         _hello(socket, frame);
+      } else if (type == 'call' &&
+          identity != null &&
+          identity.participant.canCall &&
+          callCapable) {
+        _routeCall(
+          identity.participant.id,
+          _string(frame['to'], 64),
+          _string(frame['token'], 24000),
+        );
       } else if (type == 'received' && identity != null) {
         final id = _string(frame['id'], 130);
         final sequence = _number(frame['sequence']);
@@ -361,6 +388,18 @@ class TcpMessageTransport extends ChangeNotifier implements MessageTransport {
       return;
     }
     switch (type) {
+      case 'call':
+        if (supportsCalls && _welcomed && frame['to'] == selfId) {
+          final from = _string(frame['from'], 64);
+          if (_participants.any((p) => p.id == from && p.canCall) &&
+              _allowCall(from)) {
+            _callFrames.add({
+              'from': from,
+              'token': _string(frame['token'], 24000),
+            });
+          }
+        }
+        return;
       case 'ended':
         membershipRevoked = frame['code'] == 'revoked';
         _end(_string(frame['reason'], 200));
@@ -387,6 +426,8 @@ class TcpMessageTransport extends ChangeNotifier implements MessageTransport {
               'Some missed messages are no longer available from the host.';
         }
         _welcomed = true;
+        _callRelay = frame['calls'] == 1;
+        hostId = frame['hostId'] as String?;
       case 'roster':
         if (!_welcomed) throw const FormatException('Missing welcome');
         final list = frame['participants'];
@@ -398,6 +439,7 @@ class TcpMessageTransport extends ChangeNotifier implements MessageTransport {
               (p) => Participant(
                 id: _string(p['id'], 64),
                 displayName: _string(p['name'], 32),
+                canCall: p['calls'] == 1,
               ),
             )
             .toList();
@@ -588,6 +630,11 @@ class TcpMessageTransport extends ChangeNotifier implements MessageTransport {
       identity = _Identity(Participant(id: _id(), displayName: name));
       _identities[token] = identity;
     }
+    identity.participant = Participant(
+      id: identity.participant.id,
+      displayName: identity.participant.displayName,
+      canCall: frame['calls'] == 1,
+    );
     _peers[socket] = identity;
     if (error == versionMismatchMessage) error = null;
     _participants.add(identity.participant);
@@ -595,6 +642,8 @@ class TcpMessageTransport extends ChangeNotifier implements MessageTransport {
     final baseline = resume ? max(after, oldest - 1) : _sequence;
     _write(socket, {
       'type': 'welcome',
+      'calls': callCapable ? 1 : 0,
+      'hostId': selfId,
       'selfId': identity.participant.id,
       'groupId': _groupId,
       'token': token,
@@ -783,7 +832,8 @@ class TcpMessageTransport extends ChangeNotifier implements MessageTransport {
     _broadcast({
       'type': 'roster',
       'participants': [
-        for (final p in _participants) {'id': p.id, 'name': p.displayName},
+        for (final p in _participants)
+          {'id': p.id, 'name': p.displayName, 'calls': p.canCall ? 1 : 0},
       ],
       'notice': notice,
     });
@@ -793,6 +843,49 @@ class TcpMessageTransport extends ChangeNotifier implements MessageTransport {
   void _broadcast(Map<String, Object?> frame) {
     for (final entry in _peers.entries.toList()) {
       if (entry.value != null) _write(entry.key, frame);
+    }
+  }
+
+  bool _allowCall(String sender) {
+    final second = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    final previous = _callRates[sender];
+    final count = previous?.second == second ? previous!.count + 1 : 1;
+    _callRates[sender] = (second: second, count: count);
+    return count <= 100;
+  }
+
+  void _routeCall(String from, String to, String token) {
+    if (!_allowCall(from) || !_participants.any((p) => p.id == to && p.canCall)) {
+      return;
+    }
+    if (to == selfId) {
+      _callFrames.add({'from': from, 'token': token});
+    } else {
+      for (final entry in _peers.entries) {
+        if (entry.value?.participant.id == to) {
+          _write(entry.key, {
+            'type': 'call',
+            'from': from,
+            'to': to,
+            'token': token,
+          });
+          return;
+        }
+      }
+    }
+  }
+
+  void sendCall(String peer, String token) {
+    if (status != ChatStatus.ready ||
+        !supportsCalls ||
+        !_participants.any((p) => p.id == peer && p.canCall) ||
+        token.length > 24000) {
+      throw StateError('Call signaling unavailable');
+    }
+    if (_isHost) {
+      _routeCall(selfId!, peer, token);
+    } else {
+      _write(_host!, {'type': 'call', 'to': peer, 'token': token});
     }
   }
 
@@ -904,6 +997,9 @@ class TcpMessageTransport extends ChangeNotifier implements MessageTransport {
       }
     }
     _peers.clear();
+    _callRates.clear();
+    _callRelay = false;
+    hostId = null;
     _participants.clear();
     for (final pending in _pending.values) {
       pending.completeError(
@@ -934,6 +1030,7 @@ class TcpMessageTransport extends ChangeNotifier implements MessageTransport {
     _disposed = true;
     _stop();
     _incoming.close();
+    _callFrames.close();
     super.dispose();
   }
 }

@@ -41,6 +41,10 @@ class ContactRepository {
   Future<void> block(String id) => channel.invokeMethod('block', {'id': id});
   Future<void> delete(String id) => channel.invokeMethod('delete', {'id': id});
   Future<void> reset() => channel.invokeMethod('reset');
+  Future<String> signCall(Map<String, dynamic> body) async =>
+      (await channel.invokeMethod<String>('signCall', {'body': body}))!;
+  Future<Map<String, dynamic>> verifyCall(String token) async => (await channel
+      .invokeMapMethod<String, dynamic>('verifyCall', {'token': token}))!;
   Future<void> startPairing(String name, {required bool reader}) =>
       channel.invokeMethod('pairingStart', {'name': name, 'reader': reader});
   Future<Map<String, dynamic>?> pairingStatus() =>

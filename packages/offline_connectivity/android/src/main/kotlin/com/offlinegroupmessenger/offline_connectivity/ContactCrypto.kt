@@ -39,7 +39,7 @@ internal class ContactCrypto(val publicKey: ECPublicKey, private val privateKey:
         }
         fun nonce(): String = encode(ByteArray(32).also { SecureRandom().nextBytes(it) })
         fun verify(token: String, key: String): Map<String, Any?> {
-            require(token.length in 1..16384)
+            require(token.length in 1..24000)
             val jws = JWSObject.parse(token)
             require(jws.header.algorithm == JWSAlgorithm.ES256 && jws.header.type?.type == TYPE)
             require(jws.header.toJSONObject().keys == setOf("alg", "typ"))

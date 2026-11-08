@@ -65,6 +65,23 @@ internal class ContactBook(
         it !in setOf("transcript", "approved") } + ("state" to "blocked"))
     // Unblocking intentionally requires a fresh NFC enrollment, not silent reactivation.
     @Synchronized fun delete(id: String) = update(id, null)
+    @Synchronized fun signCall(body: Map<String, Any?>): String {
+        val to = body["to"] as String
+        require(records[to]?.get("state") == "verified")
+        val payload = body + mapOf("scope" to "ogm-call-v1", "from" to crypto.id)
+        require(JSONObjectUtils.toJSONString(payload).toByteArray().size <= 18000)
+        return crypto.sign(payload)
+    }
+    @Synchronized fun verifyCall(token: String): Map<String, Any?> {
+        require(token.length <= 24000)
+        val untrusted = JSONObjectUtils.parse(com.nimbusds.jose.JWSObject.parse(token).payload.toString())
+        val from = untrusted["from"] as String
+        val contact = requireNotNull(records[from])
+        require(contact["state"] == "verified")
+        val payload = ContactCrypto.verify(token, contact["key"] as String)
+        require(payload["scope"] == "ogm-call-v1" && payload["from"] == from && payload["to"] == crypto.id)
+        return payload
+    }
     companion object {
         fun name(value: String): String = value.trim().also {
             require(it.length in 1..32 && it.none { c -> c.code < 32 || c.code == 127 })

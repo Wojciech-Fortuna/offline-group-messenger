@@ -40,3 +40,10 @@ Validate real loopback routing with multiple peers, legacy capability behavior,
 sender substitution, signature/replay rejection, cancellation/late-answer races,
 mutual calls, microphone consent and chat surviving hang-up. Physical NFC trust
 establishment and audio in the integrated app remain separate acceptance checks.
+
+C3b implemented: capability negotiation and directed frames, native pinned-contact
+JWS sign/verify, connection challenge/sequence checks, verified presence, call state
+controller and media consent/cancellation. All 70 app tests and 34 native tests
+pass, including live loopback routing, legacy-host chat, forged/replayed tokens,
+delayed answer cancellation, simultaneous calls and chat after hang-up. The screen
+integration follows separately; no physical integrated-call result is claimed.
