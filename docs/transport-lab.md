@@ -96,3 +96,18 @@ pinned plugin. Route counters/states survive teardown and appear in the screen,
 samples and sanitized export. All 14 lab tests, repository analysis and Android
 debug build pass, including timeout diagnostic retention and stale-callback
 rejection. Physical retry results must be recorded separately below.
+
+Physical retry after repair: APK installed successfully on both phones. The user
+started the test (MIUI blocks ADB input injection). UI diagnostics showed
+`Audio connected` on Xiaomi and OPPO, with one accepted local P2P candidate and
+one remote candidate each. Xiaomi at 19 seconds: 71,474 bytes sent, 61,271 received,
+zero reported packet loss, 5 ms RTT and 5 ms jitter. OPPO at 34 seconds: 105,274
+bytes sent, 121,541 received, zero reported packet loss, 5 ms RTT and 1 ms jitter.
+These are separate-time samples, not synchronized end-to-end measurements.
+
+This confirms bidirectional media transport for the short OPPO-host/MI-9-client
+retry and resolves the observed no-route failure for that setup. Listening quality
+has not been confirmed by the user. Both phones also had infrastructure Wi-Fi
+enabled for wireless ADB; candidate filtering restricted the exchanged routes to
+P2P, but a router-free repeat, ten-minute stability and other topologies remain
+unverified. No claim of completed C1 hardware acceptance.
