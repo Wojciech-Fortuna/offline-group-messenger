@@ -67,3 +67,25 @@ advance the production contact/call feature based only on successful compilation
 tests, repository analysis and the debug APK build pass. Latest cleanup/deadline
 changes still require installing the new build
 on the phones. The software milestone does not close the physical acceptance gate.
+
+## Xiaomi / OPPO media setup investigation (2026-11-08)
+
+The latest C1b APK subsequently installed on both MI 9 and OPPO CPH2247. The user
+reported zero media bytes and the 25-second route timeout. ADB inspection found
+an active P2P group on both phones (OPPO owner, Xiaomi client). Xiaomi's WebRTC
+log reported zero monitored networks and gathered only loopback candidates.
+These are correctly rejected by the lab's P2P-only filter. This is a media network
+enumeration failure, not evidence of insufficient Wi-Fi Direct bandwidth.
+
+Next repair: enable Android WebRTC's `NetworkMonitorAutoDetect.setIncludeWifiDirect`
+before any peer factory/network monitor is created. The upstream
+[network detector](https://webrtc.googlesource.com/src/+/3e64739a76ca6130088817c6da189d53308a8e40/sdk/android/api/org/webrtc/NetworkMonitorAutoDetect.java)
+gates P2P observation behind this opt-in. Keep the actual-interface candidate
+filter and empty ICE server list. Add sanitized local/remote candidate counts and
+ICE state to distinguish missing local candidates, missing remote candidates and
+failed connectivity. Preserve the failed attempt's diagnostics after cleanup.
+
+Validate analysis, regression tests and Android build, then reinstall on both
+phones and retry. A successful route and increasing bidirectional media counters
+are required before claiming this fixes physical audio. Ten-minute listening,
+fully offline operation and the remaining C1 hardware matrix remain open.
