@@ -36,7 +36,10 @@ class CallContactsFake extends ContactRepository {
   @override
   Future<Map<String, dynamic>> verifyCall(String token) async {
     final body = tokens[token];
-    if (blocked || body == null || body['from'] != other || body['to'] != self) {
+    if (blocked ||
+        body == null ||
+        body['from'] != other ||
+        body['to'] != self) {
       throw StateError('Untrusted');
     }
     return {...body};
@@ -180,4 +183,23 @@ void main() {
     expect(am, isEmpty);
     expect(bm, isEmpty);
   });
+  test(
+    'foreground return renews mutual presence and permits another call',
+    () async {
+      await a.dial(br.self);
+      await until(() => b.state == 'incoming');
+      await b.answer();
+      await until(() => a.state == 'active');
+      b.foreground(false);
+      await until(() => !a.hasCall && b.peerFor(ar.self) == null);
+      b.foreground(true);
+      await until(
+        () => a.peerFor(br.self) != null && b.peerFor(ar.self) != null,
+      );
+      await b.dial(ar.self);
+      await until(() => a.state == 'incoming');
+      expect(am.length, 1);
+      expect(bm.length, 1);
+    },
+  );
 }

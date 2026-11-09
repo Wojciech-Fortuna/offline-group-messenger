@@ -130,16 +130,14 @@ client received it; three mean every targeted recipient received it. Tap checks 
 delivery details. Targets are the other participants connected at host acceptance,
 including the host. With two phones, both senders reach three when the other phone
 receives the message. A host sending alone stays at one. These are not read receipts.
-See [delivery receipts](docs/delivery-receipts.md). Storage is not durable.
+See [delivery receipts](docs/delivery-receipts.md). Chat history storage is not durable.
 
 Session recovery is implemented and covered by automated tests. Run the
 two/three-phone [chat checks](docs/chat-protocol.md) before declaring it
-hardware-validated. Next: design authenticated identity/storage for
-[NFC contacts and offline calls](docs/contacts-and-calls.md), alongside the remaining
-connection and media hardware checks.
-The proposed sequence then adds authenticated identities and durable contacts,
-normal one-to-one calls, background calling and group push-to-talk. Calling inside
-Messenger is not implemented. Durable chat history remains a separate milestone. See
+hardware-validated. Android now includes durable NFC-verified contacts and
+foreground one-to-one calling between the host and a client in the same group.
+Integrated phone acceptance remains pending. Independent BLE calling, background
+calling and group push-to-talk follow later. Durable chat history remains separate. See
 [the roadmap](docs/roadmap.md) for acceptance criteria and remaining work.
 
 The separate [Transport Lab](tools/transport_lab/README.md) implements foreground
@@ -147,6 +145,28 @@ BLE/GATT and local WebRTC audio experiments for that feasibility milestone. It
 installs alongside Messenger and does not add production contacts or calling.
 Short OPPO/MI-9 audio passed with user-confirmed audible conversation. Longer,
 router-free, client-client and BLE checks remain open; see [lab status](docs/transport-lab.md).
+
+## Contacts and calls in Messenger
+
+1. Install the current Messenger build on both Android phones. Open **Contacts**
+   from the home toolbar, then **Add contact by NFC**.
+2. Enter names. Choose **Receive contact** on one and **Read contact** on the other.
+   Hold NFC areas together, compare the full code and confirm on both screens.
+   Wait for both to show saved/verified. Interrupted pairing can be repeated.
+3. Create/join the same group normally. Contact pairing does not admit someone to
+   a private group; its separate NFC invitation is still required.
+4. Keep both apps open. In Contacts, a verified host/client contact becomes ready
+   to call. Tap the phone icon, then **Answer** on the receiving phone.
+5. Use mute, speaker/earpiece or hang-up. Return to chat while talking; the Current
+   call icon reopens controls. Leaving the app ends this foreground-only call.
+
+Contacts survive restart in encrypted local storage. Rename, block/delete and
+explicit identity reset are available in Contacts. A lost/reinstalled identity
+requires pairing again. There is no QR contact pairing. Old chat-only builds remain
+usable for chat but are not callable. Client-client calling stays disabled pending
+the three-phone test. See [security design](docs/contact-security.md) and
+[call protocol/acceptance](docs/call-signaling.md). Chat text is not encrypted by
+this calling feature; call negotiation is signed and WebRTC encrypts audio.
 
 ## Original project concept
 

@@ -3,10 +3,12 @@
 ## Stack and boundaries
 
 Flutter / Dart owns screens, themes, navigation, chat state, message models and
-the TCP messaging layer. Kotlin owns Android Wi-Fi Direct integration.
+the TCP messaging layer and call controller. Kotlin owns Android Wi-Fi Direct,
+NFC contact enrollment, Keystore identity and encrypted contact persistence.
 Swift owns future iOS connection integration. There is no cloud backend.
 
-The app depends on a local Flutter plugin, packages/offline_connectivity.
+The app uses local Flutter plugins `packages/offline_connectivity` and
+`packages/offline_audio` (shared with Transport Lab for P2P observation and WebRTC).
 Flutter registers its Kotlin and Swift implementations automatically. Native code
 does not belong in widgets, and shared chat logic does not belong in Kotlin.
 
@@ -68,12 +70,17 @@ https://docs.flutter.dev/platform-integration/platform-channels
 
 ## Next implementation steps
 
-Proposed contacts/calling extension: [contacts-and-calls.md](contacts-and-calls.md).
-NFC establishes durable authenticated contacts; existing local connections carry
-in-group call signaling, with BLE proposed for disconnected-contact invitations.
-Accepted standalone calls create a temporary Wi-Fi Direct link for WebRTC audio.
+Contacts/calling extension: [contacts-and-calls.md](contacts-and-calls.md).
+C2 adds durable contacts and a separate mutual NFC verification flow. C3 uses
+`CallController` and signed directed signaling on the existing chat connection,
+with P2P-only WebRTC media outside the TCP chat queue. Contact signing keys and
+the AES-GCM store key stay in Android Keystore; only public contact data reaches
+Dart. Chat remains plaintext and its history remains in memory. The audio plugin
+observes the existing group and never removes it. C3 is foreground host/client
+calling; integrated hardware acceptance remains pending.
+BLE invitations and accepted-call temporary Wi-Fi Direct setup are future C4 work.
 Contacts, group membership, Wi-Fi ownership and call consent remain separate.
-This is not implemented; radio/media feasibility and identity design come first.
+Background calling and group push-to-talk remain later milestones.
 
 The canonical sequence is in [roadmap.md](roadmap.md). Session recovery is
 implemented with automated coverage. Host acceptance remains distinct from

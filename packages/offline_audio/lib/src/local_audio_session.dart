@@ -53,25 +53,29 @@ class LocalAudioSession {
       () => _fail('Audio connection timed out'),
     );
     try {
-      _stream = await _native(
+      await _native(
         _capture().then((stream) async {
           if (_closed) {
             await releaseLocalMicrophone(stream);
             throw StateError('Call ended');
           }
+          _stream = stream;
           return stream;
         }),
       );
-      _pc = await _native(
+      _check();
+      await _native(
         _createPeer().then((peer) async {
           if (_closed) {
             await releaseMedia(peer.close);
             await releaseMedia(peer.dispose);
             throw StateError('Call ended');
           }
+          _pc = peer;
           return peer;
         }),
       );
+      _check();
       final pc = _pc!;
       pc.onConnectionState = (state) {
         if (_closed) return;

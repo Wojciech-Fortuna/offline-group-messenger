@@ -47,3 +47,25 @@ controller and media consent/cancellation. All 70 app tests and 34 native tests
 pass, including live loopback routing, legacy-host chat, forged/replayed tokens,
 delayed answer cancellation, simultaneous calls and chat after hang-up. The screen
 integration follows separately; no physical integrated-call result is claimed.
+
+## C3c integration and acceptance (2026-11-09)
+
+Messenger now owns the call controller for the app foreground lifetime. Contacts
+is available from home and chat; eligible contacts expose Call. Incoming calls
+open Answer/Decline; controls show connection status, duration, mute, earpiece/
+speaker and hang-up. Returning to chat preserves media; backgrounding stops it.
+Foreground return renews both sides' authenticated presence with fresh challenges,
+retired-nonce rejection and bounded foreground retries for incomplete handshakes.
+
+All 72 app tests, 34 native tests, analysis and the debug APK build pass in the
+integration checks. The shared lab's 14 tests and debug build passed after adapter
+extraction. These are software results. No ADB devices were connected for the
+integrated NFC/audio acceptance; the earlier audible success was in Transport Lab.
+
+Install `build/app/outputs/flutter-apk/app-debug.apk` on both phones. Follow the
+Contacts and calls steps in README, verify both NFC roles and restart persistence,
+then host/client calls in both directions. Check decline, simultaneous calls,
+microphone denial, cancellation, chat during a call, hang-up and background/return.
+Repeat ten minutes without a router/mobile data. Keep client-client disabled until
+the separate three-phone media check passes. C4 BLE invitations and C5 background
+calling are not part of this foreground integration.

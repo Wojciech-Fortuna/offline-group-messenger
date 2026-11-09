@@ -47,6 +47,9 @@ class CallController extends ChangeNotifier {
   final _localNonces = <String, String>{};
   final _verified = <String, VerifiedCallPeer>{};
   final _helloReplies = <String, DateTime>{};
+  final _retiredNonces = <String, Set<String>>{};
+  final _probing = <String>{};
+  Timer? _presenceTimer;
   Map<String, SavedContact> saved = {};
   String? identity;
   String? _networkKey;
@@ -65,6 +68,7 @@ class CallController extends ChangeNotifier {
   String state = 'idle';
   String? error;
   DateTime? connectedAt;
+  int _endedDuration = 0;
   Timer? _deadline;
   Timer? _clock;
   LocalAudioSession? _media;
@@ -74,7 +78,9 @@ class CallController extends ChangeNotifier {
   String get contactName => saved[contactId]?.name ?? 'Contact';
   int get duration => connectedAt == null
       ? 0
-      : DateTime.now().difference(connectedAt!).inSeconds;
+      : hasCall
+      ? DateTime.now().difference(connectedAt!).inSeconds
+      : _endedDuration;
   static String _random() => List.generate(
     32,
     (_) => Random.secure().nextInt(256).toRadixString(16).padLeft(2, '0'),
@@ -145,9 +151,23 @@ class CallController extends ChangeNotifier {
       _localNonces.clear();
       _verified.clear();
       _helloReplies.clear();
+      _retiredNonces.clear();
       if (hasCall) unawaited(end('Connection changed', signal: false));
     }
-    if (key == null) return;
+    if (key == null) {
+      _presenceTimer?.cancel();
+      _presenceTimer = null;
+      return;
+    }
+    _presenceTimer ??= Timer.periodic(const Duration(seconds: 2), (_) {
+      if (_foreground) {
+        for (final peer in _localNonces.keys.toList()) {
+          if (!_verified.containsKey(peer)) {
+            unawaited(_probe(peer, _generation));
+          }
+        }
+      }
+    });
     final peers = transport.participants
         .where((p) => p.id != transport.selfId && p.canCall)
         .map((p) => p.id)
@@ -156,6 +176,7 @@ class CallController extends ChangeNotifier {
       if (!peers.contains(peer)) {
         _localNonces.remove(peer);
         _verified.remove(peer);
+        _retiredNonces.remove(peer);
         if (_peer == peer) {
           unawaited(end('Contact disconnected', signal: false));
         }
@@ -170,13 +191,21 @@ class CallController extends ChangeNotifier {
   }
 
   Future<void> _probe(String peer, int generation) async {
-    for (final contact in saved.keys.toList()) {
-      if (_generation != generation || !_localNonces.containsKey(peer)) return;
-      try {
-        await _send(contact, peer, 'hello');
-      } catch (_) {
-        return;
+    final probe = '$generation/$peer';
+    if (!_probing.add(probe)) return;
+    try {
+      for (final contact in saved.keys.toList()) {
+        if (_generation != generation || !_localNonces.containsKey(peer)) {
+          return;
+        }
+        try {
+          await _send(contact, peer, 'hello');
+        } catch (_) {
+          return;
+        }
       }
+    } finally {
+      _probing.remove(probe);
     }
   }
 
@@ -256,7 +285,8 @@ class CallController extends ChangeNotifier {
     final body = await contacts
         .verifyCall(frame['token'] as String)
         .timeout(const Duration(seconds: 8));
-    if (generation != _generation ||
+    if (!_foreground ||
+        generation != _generation ||
         _disposed ||
         _localNonces[peer] != challenge) {
       return;
@@ -278,6 +308,7 @@ class CallController extends ChangeNotifier {
       return;
     }
     if (kind == 'hello') {
+      if (_retiredNonces[peer]?.contains(nonce) == true) return;
       final rateKey = '$peer/$contact';
       final previous = _helloReplies[rateKey];
       if (previous != null &&
@@ -285,6 +316,17 @@ class CallController extends ChangeNotifier {
         return;
       }
       _helloReplies[rateKey] = DateTime.now();
+      final previousBinding = _verified[peer];
+      if (previousBinding != null && previousBinding.nonce != nonce) {
+        final retired = _retiredNonces.putIfAbsent(peer, () => <String>{});
+        if (retired.length >= 128) return;
+        retired.add(previousBinding.nonce);
+        _verified.remove(peer);
+        _localNonces[peer] = _random();
+        if (_peer == peer) {
+          await end('Contact restarted call availability', signal: false);
+        }
+      }
       await _send(contact as String, peer, 'helloAck', echo: nonce);
       return;
     }
@@ -380,6 +422,7 @@ class CallController extends ChangeNotifier {
     state = caller ? 'outgoing' : 'incoming';
     error = null;
     connectedAt = null;
+    _endedDuration = 0;
     _deadline?.cancel();
     _deadline = Timer(const Duration(seconds: 40), () {
       if (callId == call) unawaited(end('No answer', kind: 'timeout'));
@@ -466,6 +509,7 @@ class CallController extends ChangeNotifier {
     final call = callId;
     final contact = contactId;
     final peer = _peer;
+    _endedDuration = duration;
     callId = null;
     _peer = null;
     _deadline?.cancel();
@@ -480,9 +524,17 @@ class CallController extends ChangeNotifier {
       _changed();
     }
     if (signal && call != null && contact != null && peer != null) {
-      unawaited(
-        _send(contact, peer, kind, call: call).catchError((Object _) {}),
-      );
+      final sent = _send(
+        contact,
+        peer,
+        kind,
+        call: call,
+      ).catchError((Object _) {});
+      await Future.wait([
+        sent.timeout(const Duration(seconds: 2), onTimeout: () {}),
+        if (media != null) media.close(),
+      ]);
+      return;
     }
     await media?.close();
   }
@@ -503,7 +555,14 @@ class CallController extends ChangeNotifier {
 
   void foreground(bool value) {
     _foreground = value;
-    if (!value) unawaited(end('Call stopped when app left the foreground'));
+    if (!value) {
+      unawaited(
+        end(
+          'Call stopped when app left the foreground',
+        ).whenComplete(_synchronize),
+      );
+      return;
+    }
     _synchronize();
     if (value) unawaited(refreshContacts());
   }
@@ -511,6 +570,7 @@ class CallController extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _presenceTimer?.cancel();
     _generation++;
     transport.removeListener(_synchronize);
     unawaited(_subscription.cancel());

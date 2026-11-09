@@ -4,9 +4,17 @@ import '../../core/messaging/tcp_message_transport.dart';
 import '../../core/messaging/chat_session_controller.dart';
 
 class ChatScreen extends StatefulWidget {
-  const ChatScreen({super.key, required this.chat, this.removePrivateMember});
+  const ChatScreen({
+    super.key,
+    required this.chat,
+    this.removePrivateMember,
+    this.openContacts,
+    this.openCall,
+  });
   final ChatSessionController chat;
   final Future<void> Function(String id)? removePrivateMember;
+  final VoidCallback? openContacts;
+  final VoidCallback? openCall;
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -203,6 +211,18 @@ class _ChatScreenState extends State<ChatScreen> {
         appBar: AppBar(
           title: const Text('Group chat'),
           actions: [
+            if (widget.openContacts != null)
+              IconButton(
+                tooltip: 'Contacts and calls',
+                onPressed: widget.openContacts,
+                icon: const Icon(Icons.contacts),
+              ),
+            if (widget.openCall != null)
+              IconButton(
+                tooltip: 'Current call',
+                onPressed: widget.openCall,
+                icon: const Icon(Icons.call),
+              ),
             TextButton.icon(
               icon: const Icon(Icons.people_outline),
               label: Text('${chat.participants.length}'),

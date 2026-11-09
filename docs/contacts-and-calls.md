@@ -2,8 +2,9 @@
 
 Status: C0 recovery hardening implemented; physical connection acceptance remains
 open. C1 software is implemented as an isolated [transport lab](transport-lab.md),
-split into BLE/GATT (C1a) and local audio (C1b) commits. Contacts and production
-calling are not implemented. Short OPPO-host/MI-9-client audio now passes, including
+split into BLE/GATT (C1a) and local audio (C1b) commits. C2 identity/storage/NFC
+contacts and C3 foreground host-client calling are implemented in Messenger;
+integrated phone acceptance is pending. Short OPPO-host/MI-9-client lab audio passes, including
 user-confirmed audible conversation. The remaining C1 hardware matrix is open. Android first.
 Each milestone gets its own commit without a co-author trailer. The acceptance
 gates below distinguish implemented software from demonstrated phone behavior.
@@ -302,5 +303,11 @@ unit/widget checks; NFC hardware acceptance remains open. C3a extracts the prove
 P2P observer, candidate policy, media factory/capture/cleanup into `offline_audio`,
 shared by Messenger and the lab. A consent-controlled media session adds bounded
 setup and cancellation; the lab's unauthenticated signaling is not reused.
+C3b/C3c add authenticated call control and the call screens. The enabled topology
+is host/client; client/client remains gated pending its physical test. Contacts
+are accessible from home/chat, and incoming calls open the Answer/Decline screen.
+Ending or minimizing a call preserves chat. Leaving the app ends the call; return
+renews authenticated presence. See [call-signaling.md](call-signaling.md) for the
+protocol and integrated testing steps. C4-C6 remain future gated milestones.
 The current chat history remains a separate persistence
 task. A working WebRTC audio path does not authenticate contacts or encrypt chat.

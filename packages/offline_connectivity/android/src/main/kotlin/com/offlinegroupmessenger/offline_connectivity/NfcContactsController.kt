@@ -32,6 +32,7 @@ internal class NfcContactsController(private val context: Context) {
     fun detach() { pause(); activity = null }
     fun start(name: String, reader: Boolean, result: MethodChannel.Result) {
         cancel()
+        pairing = null
         val current = activity
         if (current == null || !resumed || adapter?.isEnabled != true) {
             result.error("nfc_unavailable", "Enable NFC and keep both apps open and phones unlocked.", null); return

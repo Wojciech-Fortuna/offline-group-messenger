@@ -9,6 +9,8 @@ import '../../core/messaging/tcp_message_transport.dart';
 import '../../core/messaging/chat_session_controller.dart';
 import '../chat/chat_screen.dart';
 import '../contacts/contacts_screen.dart';
+import '../calling/call_screen.dart';
+import '../../core/calling/call_controller.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key, required this.connectivity, this.chat});
@@ -18,7 +20,10 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
+  late final CallController _calls;
+  String? _displayedCall;
+  bool _callScreenOpen = false;
   ConnectionCapabilities? _capabilities;
   GroupConnectionState _connection = const GroupConnectionState();
   StreamSubscription<GroupConnectionState>? _subscription;
@@ -39,8 +44,47 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _chat = widget.chat ?? ChatSessionController();
+    _calls = CallController(_chat.transport)..addListener(_callChanged);
+    WidgetsBinding.instance.addObserver(this);
     _chat.addListener(_membershipChanged);
     _load();
+  }
+
+  void _callChanged() {
+    final call = _calls.callId;
+    if (!mounted || call == null || call == _displayedCall) return;
+    setState(() => _displayedCall = call);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _calls.callId == call) _openCall();
+    });
+  }
+
+  Future<void> _openCall() async {
+    if (_callScreenOpen) return;
+    _callScreenOpen = true;
+    try {
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(builder: (_) => CallScreen(calls: _calls)),
+      );
+    } finally {
+      _callScreenOpen = false;
+    }
+  }
+
+  Future<void> _openContacts() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => ContactsScreen(calls: _calls)),
+    );
+    if (mounted) await _calls.refreshContacts();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _calls.foreground(true);
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      _calls.foreground(false);
+    }
   }
 
   void _membershipChanged() {
@@ -255,6 +299,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _calls.removeListener(_callChanged);
+    _calls.dispose();
     _subscription?.cancel();
     _chat.removeListener(_membershipChanged);
     if (widget.chat == null) _chat.dispose();
@@ -293,9 +340,14 @@ class _HomeScreenState extends State<HomeScreen> {
           IconButton(
             tooltip: 'Contacts',
             icon: const Icon(Icons.contacts),
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(builder: (_) => const ContactsScreen()),
-            ),
+            onPressed: _capabilities?.platform == 'android'
+                ? _openContacts
+                : null,
+          ),
+          IconButton(
+            tooltip: 'Current call',
+            icon: const Icon(Icons.call),
+            onPressed: _openCall,
           ),
         ],
       ),
@@ -338,6 +390,10 @@ class _HomeScreenState extends State<HomeScreen> {
                         MaterialPageRoute(
                           builder: (_) => ChatScreen(
                             chat: _chat,
+                            openContacts: _capabilities?.platform == 'android'
+                                ? _openContacts
+                                : null,
+                            openCall: _openCall,
                             removePrivateMember: _removePrivateMember,
                           ),
                         ),

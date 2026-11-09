@@ -3,18 +3,19 @@
 This is the canonical milestone order. Keep README, architecture, protocol and UI
 notes consistent with implemented behavior. Commit each milestone separately.
 
-## Requested contacts and calling track (planned)
+## Requested contacts and calling track
 
 The detailed plan is [contacts-and-calls.md](contacts-and-calls.md). The next order
 for this track is C0 connection reliability, C1 local BLE/audio feasibility, C2
 authenticated identity plus durable NFC contacts, C3 full-duplex calls inside a
 group, C4 BLE call invitations plus temporary Wi-Fi Direct setup, C5 background
 calling, and C6 group push-to-talk. Each milestone is a separate commit without
-co-author trailers. Calling is not implemented. C0 recovery hardening is
+co-author trailers. C0 recovery hardening is
 implemented. C1 now has an isolated [BLE/audio lab](transport-lab.md) with automated
 checks. Short OPPO-host/MI-9-client audio and audible conversation are confirmed;
-longer/router-free and client-client tests remain open. Production contacts and calling are
-not implemented, and the C0 physical matrix and C2-C6 remain open.
+longer/router-free and client-client tests remain open. C2 protected contacts/NFC
+and C3 foreground host-client calling are implemented with automated coverage.
+Integrated NFC/call hardware acceptance, the C0 matrix and C4-C6 remain open.
 
 This expands the security, storage and background milestones below: contact
 authentication and persistence precede calling, while full chat-history storage
@@ -25,12 +26,13 @@ on the latest attempt; the earlier failure in
 [discovery-join-recovery.md](discovery-join-recovery.md) is historical. Record the
 remaining C0 matrix separately from the C1 BLE/media experiment results.
 
-Next software slice: C2a authentication/key-storage design, then protected identity
-storage and mutual NFC contacts (C2b/C2c). See the concrete
+Next acceptance slice: install the integrated build, verify mutual NFC contacts
+and persistence, then calls in both host/client directions without a router. See the
 [integration sequence](contacts-and-calls.md#integration-sequence-after-the-successful-audio-trial-2026-11-08).
 The first Messenger calls reuse an existing group in the foreground (C3); BLE
 ringing and call-owned group setup belong to C4. Continue the relevant physical
-checks alongside design work and commit every completed slice separately.
+checks and commit every completed slice separately. C4 requires BLE/GATT role and
+coexistence validation plus its private discovery/credential-channel design first.
 
 ## 1. Align documentation (complete)
 

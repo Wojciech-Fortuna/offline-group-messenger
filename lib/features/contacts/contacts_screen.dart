@@ -1,13 +1,16 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../core/contacts/contact_repository.dart';
+import '../../core/calling/call_controller.dart';
 
 class ContactsScreen extends StatefulWidget {
   const ContactsScreen({
     super.key,
     this.repository = const ContactRepository(),
+    this.calls,
   });
   final ContactRepository repository;
+  final CallController? calls;
   @override
   State<ContactsScreen> createState() => _ContactsScreenState();
 }
@@ -19,12 +22,24 @@ class _ContactsScreenState extends State<ContactsScreen> {
   @override
   void initState() {
     super.initState();
+    widget.calls?.addListener(_callsChanged);
     unawaited(load());
+  }
+
+  void _callsChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    widget.calls?.removeListener(_callsChanged);
+    super.dispose();
   }
 
   Future<void> load() async {
     try {
       final result = await widget.repository.load();
+      await widget.calls?.refreshContacts();
       if (mounted) {
         setState(() {
           snapshot = result;
@@ -187,18 +202,36 @@ class _ContactsScreenState extends State<ContactsScreen> {
             subtitle: Text(switch (contact.trust) {
               ContactTrust.pending =>
                 'Pairing incomplete — repeat NFC on both phones',
-              ContactTrust.verified => 'Verified by NFC',
+              ContactTrust.verified =>
+                widget.calls?.availability(contact.id) ?? 'Verified by NFC',
               ContactTrust.blocked =>
                 'Blocked — delete to allow a new NFC pairing',
             }),
-            trailing: PopupMenuButton<String>(
-              enabled: !busy,
-              onSelected: (value) => change(contact, value),
-              itemBuilder: (_) => [
-                const PopupMenuItem(value: 'rename', child: Text('Rename')),
-                if (contact.trust != ContactTrust.blocked)
-                  const PopupMenuItem(value: 'block', child: Text('Block')),
-                const PopupMenuItem(value: 'delete', child: Text('Delete')),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (contact.trust == ContactTrust.verified &&
+                    widget.calls != null)
+                  IconButton(
+                    tooltip: 'Call',
+                    icon: const Icon(Icons.call),
+                    onPressed:
+                        busy ||
+                            widget.calls!.hasCall ||
+                            widget.calls!.peerFor(contact.id) == null
+                        ? null
+                        : () => widget.calls!.dial(contact.id),
+                  ),
+                PopupMenuButton<String>(
+                  enabled: !busy,
+                  onSelected: (value) => change(contact, value),
+                  itemBuilder: (_) => [
+                    const PopupMenuItem(value: 'rename', child: Text('Rename')),
+                    if (contact.trust != ContactTrust.blocked)
+                      const PopupMenuItem(value: 'block', child: Text('Block')),
+                    const PopupMenuItem(value: 'delete', child: Text('Delete')),
+                  ],
+                ),
               ],
             ),
           ),
@@ -221,6 +254,7 @@ class _ContactPairingScreenState extends State<ContactPairingScreen>
   Map<String, dynamic>? pairing;
   bool busy = false;
   bool polling = false;
+  bool started = false;
   String? error;
   @override
   void initState() {
@@ -230,7 +264,7 @@ class _ContactPairingScreenState extends State<ContactPairingScreen>
   }
 
   Future<void> poll() async {
-    if (polling || busy) return;
+    if (polling || busy || !started) return;
     polling = true;
     try {
       final status = await widget.repository.pairingStatus();
@@ -246,6 +280,7 @@ class _ContactPairingScreenState extends State<ContactPairingScreen>
     setState(() {
       busy = true;
       error = null;
+      started = true;
     });
     try {
       await action();
